@@ -1,0 +1,93 @@
+// Tonearm compositor shaders. Mirrors src/core/compositor_cpu.cpp.
+// All textures are premultiplied BGRA; output is premultiplied.
+
+uniform float4x4 ViewProj;
+uniform texture2d image;
+
+// Layer
+uniform float opacity;
+uniform float4 dst_rect;   // x, y, w, h of the quad in source pixels
+uniform float4 clip_rect;  // x0, y0, x1, y1 in source pixels
+uniform float2 fade;       // soft edge widths (left, right) in pixels
+uniform float use_clip;
+
+// Rounded rectangle
+uniform float4 color;      // premultiplied
+uniform float2 rect_size;  // size of the drawn quad in pixels
+uniform float2 half_size;  // half extents of the shape
+uniform float radius;
+uniform float softness;
+
+sampler_state linear_clamp {
+	Filter   = Linear;
+	AddressU = Clamp;
+	AddressV = Clamp;
+};
+
+struct VertData {
+	float4 pos : POSITION;
+	float2 uv  : TEXCOORD0;
+};
+
+VertData VSDefault(VertData v_in)
+{
+	VertData vert_out;
+	vert_out.pos = mul(float4(v_in.pos.xyz, 1.0), ViewProj);
+	vert_out.uv  = v_in.uv;
+	return vert_out;
+}
+
+float4 PSLayer(VertData v_in) : TARGET
+{
+	float4 c = image.Sample(linear_clamp, v_in.uv) * opacity;
+	if (use_clip > 0.5) {
+		float2 p = dst_rect.xy + v_in.uv * dst_rect.zw;
+		float m = step(clip_rect.x, p.x) * step(p.x, clip_rect.z) * step(clip_rect.y, p.y) * step(p.y, clip_rect.w);
+		if (fade.x > 0.0)
+			m *= saturate((p.x - clip_rect.x) / fade.x);
+		if (fade.y > 0.0)
+			m *= saturate((clip_rect.z - p.x) / fade.y);
+		c *= m;
+	}
+	return c;
+}
+
+float sd_round_rect(float2 p, float2 h, float r)
+{
+	float2 q = abs(p) - h + float2(r, r);
+	return length(max(q, float2(0.0, 0.0))) + min(max(q.x, q.y), 0.0) - r;
+}
+
+float4 PSRoundRect(VertData v_in) : TARGET
+{
+	float2 p = v_in.uv * rect_size - rect_size * 0.5;
+	float d = sd_round_rect(p, half_size, radius);
+	float a;
+	if (softness > 0.0) {
+		// Soft falloff approximating a blurred shape (used for glows).
+		float t = saturate((d + softness * 0.5) / (softness * 1.5));
+		a = 1.0 - t;
+		a = a * a * (3.0 - 2.0 * a);
+	} else {
+		a = saturate(0.5 - d);
+	}
+	return color * a;
+}
+
+technique Layer
+{
+	pass
+	{
+		vertex_shader = VSDefault(v_in);
+		pixel_shader  = PSLayer(v_in);
+	}
+}
+
+technique RoundRect
+{
+	pass
+	{
+		vertex_shader = VSDefault(v_in);
+		pixel_shader  = PSRoundRect(v_in);
+	}
+}
