@@ -157,24 +157,48 @@ void editorialSurface(Image &card, const Style &s, const DisplayContent &c, cons
 {
 	const int w = card.width(), h = card.height();
 	const Palette &p = L.palette;
-	const Color left = p.deep;
-	const Color right = p.deep.mix(p.secondary, 0.35f).mix(Color{0, 0, 0, 1}, 0.25f);
-	fillRoundRect(card, {0, 0, (float)w, (float)h}, 0, Paint::linear({0, 0}, {(float)w, (float)h}, {{0, left}, {1, right}}));
+	const bool hasArt = L.layout.artVisible;
+	const Rect a = hasArt ? localRect(L.layout.art, L.layout.card) : Rect{};
+	const bool side = L.layout.artPlacement == ArtPlacement::FullBleedLeft;
+	Image art;
+	Color edgeTint = p.deep;
+	if (hasArt) {
+		art = artworkImage(c, p, (int)std::lround(a.w), (int)std::lround(a.h));
+		// The artwork's inner edge color, so the surface can pick up where the cover ends.
+		const int strip = std::max(2, static_cast<int>((side ? art.width() : art.height()) * 0.08f));
+		Image edge(side ? strip : art.width(), side ? art.height() : strip);
+		for (int y = 0; y < edge.height(); ++y) {
+			const uint8_t *src = side ? art.row(y) + (art.width() - strip) * 4 : art.row(art.height() - strip + y);
+			std::copy(src, src + edge.stride(), edge.row(y));
+		}
+		const Color e = averageColor(edge);
+		edgeTint = Color{e.r, e.g, e.b, 1}.mix(p.deep, 0.55f);
+	}
+
+	// Paper-like gradient: lifted next to the artwork, settling into the deep tone.
+	const Color nearC = hasArt ? p.deep.mix(edgeTint, 0.45f) : p.deep;
+	const Color farC = p.deep.mix(p.secondary, 0.3f).mix(Color{0, 0, 0, 1}, 0.2f);
+	const Vec2 g0 = hasArt ? (side ? Vec2{a.right(), 0} : Vec2{0, a.bottom()}) : Vec2{0, 0};
+	const Vec2 g1 = hasArt && !side ? Vec2{(float)w * 0.6f, (float)h} : Vec2{(float)w, (float)h};
+	fillRoundRect(card, {0, 0, (float)w, (float)h}, 0, Paint::linear(g0, g1, {{0, nearC}, {1, farC}}));
 	// A low, warm wash of the accent from the far corner.
 	fillRoundRect(card, {0, 0, (float)w, (float)h}, 0,
 		      Paint::radial({w * 1.0f, h * 1.1f}, std::max(w, h) * 0.9f,
-				    {{0, p.accent.withAlpha(0.20f)}, {1, p.accent.withAlpha(0.0f)}}));
+				    {{0, p.accent.withAlpha(0.18f)}, {1, p.accent.withAlpha(0.0f)}}));
 	if (s.artworkBackground && s.backdropBlur > 0) {
 		Image bd = backdrop(c, p, w, h, 1.0f);
 		composite(card, bd, 0, 0, 0.22f * s.backdropBlur);
 	}
 
-	if (L.layout.artVisible) {
-		const Rect a = localRect(L.layout.art, L.layout.card);
-		Image art = artworkImage(c, p, (int)std::lround(a.w), (int)std::lround(a.h));
-		// Feather the inner edge of the artwork into the gradient.
-		const bool side = L.layout.artPlacement == ArtPlacement::FullBleedLeft;
-		const float feather = side ? a.w * 0.26f : a.h * 0.26f;
+	if (hasArt) {
+		// Feather the inner edge of the artwork into the surface, over a haze of its own
+		// edge color, so the hand-off reads as light falling off rather than a seam.
+		const float feather = side ? a.w * 0.32f : a.h * 0.32f;
+		const float reach = (side ? a.w : a.h) * 0.5f;
+		const Vec2 from = side ? Vec2{a.right() - feather, 0} : Vec2{0, a.bottom() - feather};
+		const Vec2 to = side ? Vec2{a.right() + reach, 0} : Vec2{0, a.bottom() + reach};
+		fillRoundRect(card, {0, 0, (float)w, (float)h}, 0,
+			      Paint::linear(from, to, {{0, edgeTint.withAlpha(0.85f)}, {0.5f, edgeTint.withAlpha(0.3f)}, {1, edgeTint.withAlpha(0)}}));
 		for (int y = 0; y < art.height(); ++y) {
 			uint8_t *px = art.row(y);
 			for (int x = 0; x < art.width(); ++x, px += 4) {

@@ -3,6 +3,8 @@
 
 #include <obs-module.h>
 
+#include <cstdlib>
+
 namespace tonearm {
 
 MediaService &MediaService::instance()
@@ -15,9 +17,10 @@ void MediaService::acquire()
 {
 	std::lock_guard<std::mutex> lock(mutex_);
 	if (refs_++ == 0 && !provider_) {
-		provider_ = createSystemProvider();
+		const bool scripted = std::getenv("TONEARM_SCRIPTED_MEDIA") != nullptr;
+		provider_ = scripted ? createScriptedProvider() : createSystemProvider();
 		provider_->start();
-		blog(LOG_INFO, "[tonearm] media provider started");
+		blog(LOG_INFO, "[tonearm] %s media provider started", scripted ? "scripted test" : "system");
 	}
 }
 

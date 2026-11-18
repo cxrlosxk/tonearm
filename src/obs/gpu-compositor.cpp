@@ -96,14 +96,19 @@ void GpuCompositor::drawImage(const DrawOp &op, gs_texture_t *tex)
 	vec4_set(&dst, op.dst.x, op.dst.y, op.dst.w, op.dst.h);
 	gs_effect_set_vec4(pDst_, &dst);
 	gs_effect_set_float(pUseClip_, op.clip ? 1.0f : 0.0f);
+	// Always set every parameter: libobs warns about (and skips) parameters that
+	// were never given a value, even when the shader branch ignores them.
+	struct vec4 clip;
+	struct vec2 fade;
 	if (op.clip) {
-		struct vec4 clip;
 		vec4_set(&clip, op.clipRect.x, op.clipRect.y, op.clipRect.right(), op.clipRect.bottom());
-		gs_effect_set_vec4(pClip_, &clip);
-		struct vec2 fade;
 		vec2_set(&fade, op.fadeLeft, op.fadeRight);
-		gs_effect_set_vec2(pFade_, &fade);
+	} else {
+		vec4_zero(&clip);
+		vec2_zero(&fade);
 	}
+	gs_effect_set_vec4(pClip_, &clip);
+	gs_effect_set_vec2(pFade_, &fade);
 
 	gs_matrix_push();
 	gs_matrix_translate3f(op.dst.x, op.dst.y, 0.0f);

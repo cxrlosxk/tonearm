@@ -110,15 +110,8 @@ bool onPresetOrLayoutChanged(void *priv, obs_properties_t *props, obs_property_t
 {
 	(void)priv;
 	props = root(props);
+	syncPreset(settings);
 	const char *preset = obs_data_get_string(settings, "preset");
-	const char *layout = obs_data_get_string(settings, "layout");
-	const char *appliedPreset = obs_data_get_string(settings, "applied_preset");
-	const char *appliedLayout = obs_data_get_string(settings, "applied_layout");
-	if (strcmp(preset, appliedPreset) != 0 || strcmp(layout, appliedLayout) != 0) {
-		// Changing the layout resets the size; changing only the preset keeps the user's size.
-		const bool layoutChanged = strcmp(layout, appliedLayout) != 0;
-		applyPreset(settings, preset, layout, layoutChanged);
-	}
 	// Preset-specific controls
 	const bool glass = !strcmp(preset, "glass") || !strcmp(preset, "editorial");
 	obs_property_set_visible(obs_properties_get(props, "blur"), glass);
@@ -204,6 +197,19 @@ void applyPreset(obs_data_t *settings, const std::string &preset, const std::str
 	writeStyle(settings, s, resetSize);
 	obs_data_set_string(settings, "applied_preset", preset.c_str());
 	obs_data_set_string(settings, "applied_layout", layout.c_str());
+}
+
+bool syncPreset(obs_data_t *settings)
+{
+	const std::string preset = obs_data_get_string(settings, "preset");
+	const std::string layout = obs_data_get_string(settings, "layout");
+	const std::string appliedPreset = obs_data_get_string(settings, "applied_preset");
+	const std::string appliedLayout = obs_data_get_string(settings, "applied_layout");
+	if (preset == appliedPreset && layout == appliedLayout)
+		return false;
+	// Changing the layout resets the size; changing only the preset keeps the user's size.
+	applyPreset(settings, preset, layout, layout != appliedLayout);
+	return true;
 }
 
 void settingsDefaults(obs_data_t *d)

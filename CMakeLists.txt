@@ -47,7 +47,7 @@ endif()
 # ---------------------------------------------------------------------------
 # Media providers
 # ---------------------------------------------------------------------------
-add_library(tonearm_media STATIC src/media/provider.cpp src/media/demo_provider.cpp)
+add_library(tonearm_media STATIC src/media/provider.cpp src/media/demo_provider.cpp src/media/scripted_provider.cpp)
 target_link_libraries(tonearm_media PUBLIC tonearm_core)
 if(WIN32)
   target_sources(tonearm_media PRIVATE src/media/smtc_provider.cpp src/media/wic_decode.cpp)

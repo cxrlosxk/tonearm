@@ -41,6 +41,10 @@ private:
 // reports itself as unavailable.
 std::unique_ptr<MediaProvider> createSystemProvider();
 
+// Replays common player situations on a loop, for testing inside OBS without a
+// music app. Selected by the TONEARM_SCRIPTED_MEDIA environment variable.
+std::unique_ptr<MediaProvider> createScriptedProvider();
+
 // Simulated player cycling through the fictional sample tracks.
 class DemoProvider final : public MediaProvider {
 public:

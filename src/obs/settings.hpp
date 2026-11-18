@@ -17,6 +17,11 @@ SelectionPolicy policyFromSettings(obs_data_t *settings);
 // Writes every visual value of a preset into the settings (used when the user picks a preset).
 void applyPreset(obs_data_t *settings, const std::string &preset, const std::string &layout, bool resetSize);
 
+// Applies a preset or layout that changed without going through the properties
+// dialog (obs-websocket, scripts, hand-edited scene collections). Returns true
+// when settings were rewritten.
+bool syncPreset(obs_data_t *settings);
+
 // Preset files: a JSON document with the visual settings only.
 bool exportPreset(obs_data_t *settings, const char *path);
 bool importPreset(obs_data_t *settings, const char *path, std::string &error);

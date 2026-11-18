@@ -79,6 +79,7 @@ struct TonearmSource {
 
 	void update(obs_data_t *settings)
 	{
+		syncPreset(settings);
 		Style s = styleFromSettings(settings);
 		SelectionPolicy p = policyFromSettings(settings);
 		width = static_cast<uint32_t>(s.width);
