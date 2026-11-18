@@ -1,0 +1,117 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+#include "check.hpp"
+#include "support.hpp"
+
+#include "core/demo.hpp"
+#include "core/raster.hpp"
+
+using namespace tonearm;
+
+namespace {
+Color over(const Color &fg, const Color &bg)
+{
+	return {fg.r * fg.a + bg.r * (1 - fg.a), fg.g * fg.a + bg.g * (1 - fg.a), fg.b * fg.a + bg.b * (1 - fg.a), 1};
+}
+
+DisplayContent content(int track, bool art = true)
+{
+	return resolveContent(demoTrack(track, 256, art), "Apple Music");
+}
+} // namespace
+
+TEST("raster: every preset rasterizes all of its elements")
+{
+	for (const auto &p : presetList()) {
+		const Style s = makePreset(p.id, LayoutMode::ExpandedHorizontal);
+		auto set = rasterizeLayers(s, content(0), testsupport::text());
+		const std::string what = p.id;
+		CHECK_MSG(set->surface.valid(), what);
+		CHECK_MSG(set->title.valid(), what);
+		CHECK_MSG(set->artist.valid(), what);
+		CHECK_MSG(set->palette.valid, what);
+		CHECK_MSG(set->surface.image->width() == s.width && set->surface.image->height() == s.height,
+			  what + ": surface should cover the canvas");
+	}
+}
+
+TEST("raster: text stays readable on artwork-derived surfaces")
+{
+	for (const auto &p : presetList())
+		for (int i = 0; i < demoTrackCount(); ++i) {
+			const Style s = makePreset(p.id, LayoutMode::ExpandedHorizontal);
+			auto set = rasterizeLayers(s, content(i), testsupport::text());
+			const float ratio = contrastRatio(over(set->timeColor, set->surfaceTone), set->surfaceTone);
+			CHECK_MSG(ratio >= 4.4f, std::string(p.id) + " track " + std::to_string(i) + ": time contrast " + std::to_string(ratio));
+			CHECK_MSG(contrastRatio(set->accent, set->surfaceTone) >= 2.9f || s.accentMode == AccentMode::Custom,
+				  std::string(p.id) + " track " + std::to_string(i) + ": accent contrast");
+		}
+}
+
+TEST("raster: long titles scroll, or truncate when motion is reduced")
+{
+	const int longTrack = 3; // "Everything I Never Said on the Last Train Home (Extended Version)"
+	Style s = makePreset("glass", LayoutMode::ExpandedHorizontal);
+	auto set = rasterizeLayers(s, content(longTrack), testsupport::text());
+	CHECK(set->title.overflow);
+	CHECK(set->title.naturalWidth > set->title.box.w);
+
+	s.reducedMotion = true;
+	auto calm = rasterizeLayers(s, content(longTrack), testsupport::text());
+	CHECK(!calm.get()->title.overflow);
+	CHECK(calm->title.dst.w <= calm->title.box.w + 2 * calm->title.dst.h); // fits its box plus padding
+
+	s.reducedMotion = false;
+	s.marquee = false;
+	auto off = rasterizeLayers(s, content(longTrack), testsupport::text());
+	CHECK(!off->title.overflow);
+}
+
+TEST("raster: short titles never scroll")
+{
+	auto set = rasterizeLayers(makePreset("minimal", LayoutMode::ExpandedHorizontal), content(2), testsupport::text());
+	CHECK(!set->title.overflow);
+}
+
+TEST("raster: missing artwork gets a generated cover, not an empty hole")
+{
+	for (const auto &p : presetList()) {
+		const Style s = makePreset(p.id, LayoutMode::Square);
+		auto set = rasterizeLayers(s, content(1, false), testsupport::text());
+		CHECK_MSG(set->palette.valid, p.id);
+		CHECK_MSG(set->art.valid() || set->surface.valid(), p.id);
+	}
+}
+
+TEST("raster: missing title falls back to the next best field")
+{
+	TrackInfo t;
+	t.artist = "Only An Artist";
+	const DisplayContent c = resolveContent(t, "Spotify");
+	CHECK(c.title == "Only An Artist");
+	CHECK(c.artist.empty() || c.artist != c.title);
+
+	const DisplayContent ph = placeholderContent("Nothing playing");
+	CHECK(ph.kind == DisplayContent::Kind::Placeholder);
+	auto set = rasterizeLayers(makePreset("glass", LayoutMode::CompactHorizontal), ph, testsupport::text());
+	CHECK(set->placeholder);
+	CHECK(set->title.valid());
+}
+
+TEST("raster: time labels use tabular figures and a real minus sign")
+{
+	CHECK(formatTime(0, false) == "0:00");
+	CHECK(formatTime(65, false) == "1:05");
+	CHECK(formatTime(3725, false) == "1:02:05");
+	CHECK(formatTime(65, true) == "\xE2\x88\x92" "1:05");
+	auto set = rasterizeLayers(makePreset("glass", LayoutMode::ExpandedHorizontal), content(0), testsupport::text());
+	const TimeLayers t = rasterizeTimes(makePreset("glass", LayoutMode::ExpandedHorizontal), *set, 30, 217, testsupport::text());
+	CHECK(t.elapsed.valid());
+	CHECK(t.remaining.valid());
+}
+
+TEST("raster: non-Latin text renders")
+{
+	auto set = rasterizeLayers(makePreset("editorial", LayoutMode::Vertical), content(4), testsupport::text());
+	CHECK(set->title.valid());
+	CHECK(set->title.naturalWidth > 10);
+}

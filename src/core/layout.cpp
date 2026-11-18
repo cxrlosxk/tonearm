@@ -37,12 +37,26 @@ bool showTimes(const Style &s, const LayoutContent &c)
 }
 
 // Stacks the text block (title, artist, album) starting at y; returns the bottom.
+FontSpec sourceFont(const Style &s, float u)
+{
+	FontSpec f = scaled(s.timeFont, u);
+	f.uppercase = true;
+	f.tabularNumbers = false;
+	f.trackingEm = 0.08f;
+	return f;
+}
+
 float stackText(Layout &L, const Style &s, const LayoutContent &c, float x, float y, float w, TextAlign align, bool artistFirst)
 {
 	const float u = L.unit;
 	FontSpec tf = scaled(s.titleFont, u), af = scaled(s.artistFont, u), bf = scaled(s.albumFont, u);
 	const float gapTitle = std::round((artistFirst ? space1 + 2 : space1 - 1) * u);
 	const float gapAlbum = std::round(space1 * u);
+	if (s.showSourceApp && c.hasSource) {
+		// The player name sits above the text as a small eyebrow label.
+		L.source = box(x, y, w, sourceFont(s, u), align);
+		y += L.source.rect.h + std::round(space1 * u);
+	}
 	if (artistFirst && c.hasArtist) {
 		L.artist = box(x, y, w, af, align);
 		y += L.artist.rect.h + gapTitle;
@@ -65,9 +79,12 @@ float stackText(Layout &L, const Style &s, const LayoutContent &c, float x, floa
 
 float textBlockHeight(const Style &s, const LayoutContent &c, float u)
 {
+	const bool artistFirst = s.composition == Composition::Editorial;
 	float h = lineHeightFor(scaled(s.titleFont, u));
+	if (s.showSourceApp && c.hasSource)
+		h += lineHeightFor(sourceFont(s, u)) + std::round(space1 * u);
 	if (c.hasArtist)
-		h += lineHeightFor(scaled(s.artistFont, u)) + std::round((space1 - 1) * u);
+		h += lineHeightFor(scaled(s.artistFont, u)) + std::round((artistFirst ? space1 + 2 : space1 - 1) * u);
 	if (s.showAlbum && c.hasAlbum)
 		h += lineHeightFor(scaled(s.albumFont, u)) + std::round(space1 * u);
 	return h;
@@ -199,6 +216,9 @@ Layout computeLayout(const Style &s, const LayoutContent &content)
 			if (textBlockHeight(s, c, u) + progNeed > inner.h + 0.5f)
 				c.hasAlbum = false;
 		}
+		// Then the player name, which is the least important line.
+		if (s.showSourceApp && textBlockHeight(s, c, u) > inner.h + 0.5f)
+			c.hasSource = false;
 
 		const bool artistFirst = comp == Composition::Editorial;
 		if (compact) {
@@ -275,10 +295,6 @@ Layout computeLayout(const Style &s, const LayoutContent &content)
 		}
 	}
 
-	if (s.showSourceApp) {
-		const FontSpec sf = scaled(s.timeFont, u);
-		L.source = box(L.textColumn.x, L.card.y + std::round(space2 * u), L.textColumn.w, sf, TextAlign::Left);
-	}
 	return L;
 }
 

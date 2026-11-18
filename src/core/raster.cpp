@@ -462,7 +462,7 @@ std::shared_ptr<LayerSet> rasterizeLayers(const Style &s, const DisplayContent &
 	set->title = textLayer(te, c.title, L.title, titleC, marquee, glowPad, s, set->accent, neonGlow ? 0.55f * s.glowStrength : 0, u);
 	set->artist = textLayer(te, c.artist, L.artist, artistC, marquee, glowPad, s, set->accent, 0, u);
 	set->album = textLayer(te, c.album, L.album, albumC, marquee, glowPad, s, set->accent, 0, u);
-	if (s.showSourceApp && !c.sourceName.empty())
+	if (s.showSourceApp && L.source.visible && !c.sourceName.empty())
 		set->source = textLayer(te, c.sourceName, L.source, set->timeColor, false, glowPad, s, set->accent, 0, u);
 	return set;
 }

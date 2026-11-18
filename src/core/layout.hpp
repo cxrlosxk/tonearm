@@ -22,6 +22,7 @@ struct LayoutContent {
 	bool hasAlbum = true;
 	bool hasTimeline = true;
 	bool hasArtist = true;
+	bool hasSource = true;      // cleared by the layout when the player name does not fit
 };
 
 struct Layout {

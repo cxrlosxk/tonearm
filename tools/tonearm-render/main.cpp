@@ -25,7 +25,6 @@ struct Args {
 	std::string out = "out.png";
 	std::string outdir = "frames";
 	std::string bg = "stage";
-	std::string art;
 	int track = 0, toTrack = 1;
 	double pos = 74;
 	std::string status = "playing";
@@ -57,8 +56,6 @@ Args parse(int argc, char **argv)
 			a.outdir = next();
 		else if (k == "--bg")
 			a.bg = next();
-		else if (k == "--art")
-			a.art = next();
 		else if (k == "--track")
 			a.track = std::atoi(next().c_str());
 		else if (k == "--to")
@@ -120,7 +117,6 @@ struct Harness {
 	DemoProvider provider;
 	std::unique_ptr<TextEngine> text;
 	Clock::time_point base = Clock::now();
-	std::string artPath;
 	bool noArt = false;
 
 	explicit Harness(const Style &s) : style(s), scene(s), provider(0), text(createTextEngine()) { loadFonts(*text); }
@@ -129,14 +125,6 @@ struct Harness {
 	{
 		provider.setNow(base + std::chrono::duration_cast<Clock::duration>(std::chrono::duration<double>(t)));
 		provider.set(idx, st, pos, !noArt);
-		if (!artPath.empty()) {
-			// Optional user-supplied artwork for local experiments.
-			Image img;
-			if (readPng(artPath, img)) {
-				auto snap = *provider.snapshot();
-				(void)snap;
-			}
-		}
 	}
 
 	void step(double t)
@@ -197,7 +185,6 @@ int main(int argc, char **argv)
 
 	Harness h(style);
 	h.noArt = a.noArt;
-	h.artPath = a.art;
 	const double dt = 1.0 / std::max(1, a.fps);
 
 	if (a.mode == "still") {
