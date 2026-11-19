@@ -270,6 +270,7 @@ std::optional<std::string> cacheSingleMp4(const std::string &media, const std::s
 	std::optional<std::string> sameFile;
 	size_t segments = 0;
 	bool byteranges = false;
+	std::uint64_t rangeEnd = 0;
 	for (const auto &row : rows) {
 		if (row.rfind("#EXT-X-MAP:", 0) == 0) {
 			const auto uri = quotedUri(row);
@@ -283,6 +284,24 @@ std::optional<std::string> cacheSingleMp4(const std::string &media, const std::s
 			sameFile = *full;
 		} else if (row.rfind("#EXT-X-BYTERANGE:", 0) == 0) {
 			byteranges = true;
+			// The playlist exposes the full file's byte ranges. Reject
+			// over-budget renditions BEFORE downloading 100 MB of an MP4 that
+			// cannot fit in the cache. Then try the next lower-bitrate stream.
+			const std::string spec = row.substr(sizeof("#EXT-X-BYTERANGE:") - 1);
+			try {
+				const auto at = spec.find('@');
+				const auto length = static_cast<std::uint64_t>(std::stoull(spec.substr(0, at)));
+				const auto start = at == std::string::npos ? rangeEnd :
+					static_cast<std::uint64_t>(std::stoull(spec.substr(at + 1)));
+				if (length == 0 || start > kMaxEntireAlbum ||
+				    length > kMaxEntireAlbum - start) {
+					cacheTrace("Apple rendition exceeds motion cache budget; trying smaller stream");
+					return std::nullopt;
+				}
+				rangeEnd = start + length;
+			} catch (...) {
+				return std::nullopt;
+			}
 		} else if (!row.empty() && row[0] != '#') {
 			const auto full = absoluteUrl(playlistUrl, row);
 			if (!full || (sameFile && *sameFile != *full))
