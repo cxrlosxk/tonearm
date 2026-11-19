@@ -25,4 +25,9 @@ struct CatalogAlbum {
 // Deliberately abstains when Apple lists multiple indistinguishable releases.
 std::optional<std::uint64_t> exactCatalogAlbumId(const MotionQuery &nowPlaying, const std::vector<CatalogAlbum> &candidates);
 
+// Match a playing track against an official album credit that lists several
+// artists (e.g. "Wicked Movie Cast, Cynthia Erivo & Ariana Grande").
+// The official album title must still be checked separately.
+bool catalogArtistMatches(const MotionQuery &nowPlaying, const std::string &catalogArtist);
+
 } // namespace tonearm
