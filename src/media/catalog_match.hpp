@@ -39,4 +39,12 @@ bool compatibleMotionAlbumTitle(const std::string &requested, const std::string 
 // Returns "" for titles that do not have a safely removable qualifier.
 std::string motionBaseAlbumQuery(const std::string &album);
 
+// Soundtracks sometimes use a track's performer in SMTC while the album's
+// animated artwork is credited to its composers. A mismatch is allowed only
+// after the public Apple catalog confirms the exact same edition and that
+// this track, credited to the performer, belongs to that precise album.
+bool verifiedSoundtrackTrack(const MotionQuery &nowPlaying, const CatalogAlbum &officialAlbum,
+                             const std::string &motionArtist, const std::string &motionAlbum,
+                             const std::string &trackArtist, const std::string &trackTitle);
+
 } // namespace tonearm
