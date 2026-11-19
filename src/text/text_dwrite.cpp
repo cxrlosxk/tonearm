@@ -158,11 +158,15 @@ public:
 		if (FAILED(d2d_->CreateWicBitmapRenderTarget(bitmap.get(), props, rt.put())))
 			return run;
 		rt->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
-		Com<IDWriteRenderingParams> params;
-		// The base-interface overload; derived interfaces add arguments and hide it in some SDK headers.
-		IDWriteFactory *base = factory_.get();
-		if (SUCCEEDED(base->CreateCustomRenderingParams(1.8f, 0.5f, 0.0f, DWRITE_PIXEL_GEOMETRY_FLAT,
-								DWRITE_RENDERING_MODE_NATURAL_SYMMETRIC, params.put())))
+		// Antialiased in both directions with grid fitting off. With vertical grid fitting,
+		// DirectWrite snaps the small gap above Inter's i stem shut at overlay sizes and
+		// "Alicia" reads "Allcia". The overlay is composited and often scaled, so outlines
+		// placed exactly as designed matter more than crisp horizontal stems.
+		Com<IDWriteRenderingParams2> params;
+		IDWriteFactory2 *f2 = factory_.get();
+		if (SUCCEEDED(f2->CreateCustomRenderingParams(1.8f, 0.5f, 0.5f, 0.0f, DWRITE_PIXEL_GEOMETRY_FLAT,
+							      DWRITE_RENDERING_MODE_NATURAL_SYMMETRIC, DWRITE_GRID_FIT_MODE_DISABLED,
+							      params.put())))
 			rt->SetTextRenderingParams(params.get());
 
 		Com<ID2D1SolidColorBrush> brush;
