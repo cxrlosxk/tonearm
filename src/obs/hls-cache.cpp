@@ -456,13 +456,20 @@ std::optional<std::string> cacheMotionHls(const std::string &playlistUrl, const 
 	// Quality variants must not reuse a previous lower-resolution cached file.
 	const auto key = cacheKey(playlistUrl + (quality == MotionQuality::Maximum ? "|max" : "|balanced"));
 	auto albumLock = mutexForKey(key);
-	while (!cancelled && !albumLock->try_lock_for(std::chrono::milliseconds(100))) {
+	bool acquired = false;
+	while (!cancelled) {
+		if (albumLock->try_lock_for(std::chrono::milliseconds(100))) {
+			acquired = true;
+			break;
+		}
 		// A newer track superseded this lookup; don't block shutdown or the
 		// foreground song behind another overlay's network request.
 	}
-	if (cancelled)
+	if (!acquired)
 		return std::nullopt;
 	std::unique_lock<std::timed_mutex> locked(*albumLock, std::adopt_lock);
+	if (cancelled)
+		return std::nullopt; // RAII unlocks even when cancellation races acquisition.
 	const fs::path finished = root / key;
 	const fs::path mp4Dest = finished / L"artwork.mp4";
 	const fs::path playlistDest = finished / L"artwork.m3u8";
