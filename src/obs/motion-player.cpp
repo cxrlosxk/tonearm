@@ -291,10 +291,16 @@ gs_texture_t *MotionPlayer::prepare(const std::vector<DrawOp> &ops, const Rect &
 		return nullptr;
 	}
 
-	// Copy at the artwork's size (never above the video's), cropped to fill the box.
-	const float scale = std::min(1.0f, std::min(static_cast<float>(vw) / box.w, static_cast<float>(vh) / box.h));
-	const uint32_t tw = std::max(1u, static_cast<uint32_t>(std::lround(box.w * std::max(scale, 0.25f))));
-	const uint32_t th = std::max(1u, static_cast<uint32_t>(std::lround(box.h * std::max(scale, 0.25f))));
+	// Preserve native decoded detail until the final compositor draw. Capturing
+	// directly at the small overlay box size used to throw away most of the
+	// Apple artwork pixels, which became visibly soft when OBS scaled the card.
+	// Cap the GPU capture to avoid excessive bandwidth on slower computers;
+	// this is a *downscale-only* cap, never an artificial upscale.
+	const CropRect crop = coverCrop(static_cast<int>(vw), static_cast<int>(vh), box.w, box.h);
+	constexpr float kMaxCaptureDimension = 1440.0f;
+	const float captureScale = std::min(1.0f, kMaxCaptureDimension / std::max(crop.w, crop.h));
+	const uint32_t tw = std::max(1u, static_cast<uint32_t>(std::lround(crop.w * captureScale)));
+	const uint32_t th = std::max(1u, static_cast<uint32_t>(std::lround(crop.h * captureScale)));
 	const bool sizeChanged = tw != texW_ || th != texH_;
 	const uint64_t gen = loadGeneration_.load();
 	if (gen != capturedGeneration_)
@@ -311,8 +317,7 @@ gs_texture_t *MotionPlayer::prepare(const std::vector<DrawOp> &ops, const Rect &
 			struct vec4 clear;
 			vec4_zero(&clear);
 			gs_clear(GS_CLEAR_COLOR, &clear, 0.0f, 0);
-			const CropRect c = coverCrop(static_cast<int>(vw), static_cast<int>(vh), box.w, box.h);
-			gs_ortho(c.x, c.x + c.w, c.y, c.y + c.h, -100.0f, 100.0f);
+			gs_ortho(crop.x, crop.x + crop.w, crop.y, crop.y + crop.h, -100.0f, 100.0f);
 			gs_blend_state_push();
 			gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO);
 			obs_source_video_render(child);
