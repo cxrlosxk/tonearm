@@ -72,10 +72,18 @@ foreach ($q in $queries) {
                 $cacheProbe = Join-Path (Get-Location) "build/RelWithDebInfo/tonearm-hls-cache-smoke.exe"
                 if (-not (Test-Path $cacheProbe)) { throw "Native HLS cache probe executable was not built" }
                 $env:TONEARM_HLS_DIAGNOSTICS = '1'
+                $maxTimer = [Diagnostics.Stopwatch]::StartNew()
                 & $cacheProbe $hls
-                if ($LASTEXITCODE -ne 0) { throw "Native offline HLS cache validation failed" }
+                $maxTimer.Stop()
+                if ($LASTEXITCODE -ne 0) { throw "Native maximum-quality cache failed" }
+                Write-Host "Maximum animation cache ready in $([Math]::Round($maxTimer.Elapsed.TotalSeconds,2))s"
+                $smartTimer = [Diagnostics.Stopwatch]::StartNew()
+                & $cacheProbe $hls balanced
+                $smartTimer.Stop()
+                if ($LASTEXITCODE -ne 0) { throw "Native Smart/H264-quality cache failed" }
+                Write-Host "Smart/H264 animation cache ready in $([Math]::Round($smartTimer.Elapsed.TotalSeconds,2))s"
                 $cachePassed = $true
-                Write-Host "Native cached HLS validation succeeded"
+                Write-Host "Native cached HLS and persistent album replay validation succeeded"
             }
             Write-Host "Online motion HLS: requested=$($q.artist) / $($q.album), response=$($response.artist) / $($response.album), CDN=$(([uri]$hls).Host)"
             # Check that the playlist also contains moving frames. No artwork is saved in the repo.
@@ -114,7 +122,14 @@ $coverage = @(
     @{artist='Ariana Grande';album='eternal sunshine deluxe: brighter days ahead'},
     @{artist='Ariana Grande';album='eternal sunshine'},
     @{artist='Beyonce';album="B'Day (20th Anniversary Deluxe Edition)"},
-    @{artist='Beyonce';album="B'Day"}
+    @{artist='Beyonce';album="B'Day"},
+    @{artist='The Weeknd';album='Dawn FM'},
+    @{artist='Ariana Grande';album='Positions'},
+    @{artist='SZA';album='SOS'},
+    @{artist='Lizzo';album='Special'},
+    @{artist='Adele';album='30'},
+    @{artist='Mariah Carey';album='Music Box: 30th Anniversary Edition'},
+    @{artist='Katy Perry';album='143'}
 )
 foreach ($q in $coverage) {
     $u = "https://artwork.m8tec.top/api/v1/artwork/search?artist=$([uri]::EscapeDataString($q.artist))&album=$([uri]::EscapeDataString($q.album))"
