@@ -115,7 +115,11 @@ std::string getJson(const wchar_t *hostname, const std::string &path,
 			return {};
 		if (available == 0)
 			break;
-		if (available > 65536 || body.size() + available > 65536)
+		// Exact soundtrack verification may use an album's complete track
+		// listing, which is larger than the artwork service's small JSON.
+		const size_t responseCap = (std::wstring(hostname) == L"itunes.apple.com")
+						? 512 * 1024 : 65536;
+		if (available > responseCap || body.size() > responseCap - available)
 			return {};
 		std::string chunk(available, '\0');
 		DWORD read = 0;
