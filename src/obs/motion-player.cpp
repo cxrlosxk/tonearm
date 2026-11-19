@@ -317,6 +317,8 @@ gs_texture_t *MotionPlayer::prepare(const std::vector<DrawOp> &ops, const Rect &
 	}
 	if (!loaded) {
 		haveTexture_ = false;
+		captureReportStart_ = -1.0;
+		capturedFramesInWindow_ = 0;
 		return nullptr;
 	}
 	const bool wanted = std::any_of(ops.begin(), ops.end(), [](const DrawOp &op) { return op.kind == DrawOp::Kind::Video; });
@@ -363,8 +365,11 @@ gs_texture_t *MotionPlayer::prepare(const std::vector<DrawOp> &ops, const Rect &
 	const uint32_t th = std::max(1u, static_cast<uint32_t>(std::lround(crop.h * captureScale)));
 	const bool sizeChanged = tw != texW_ || th != texH_;
 	const uint64_t gen = loadGeneration_.load();
-	if (gen != capturedGeneration_)
+	if (gen != capturedGeneration_) {
 		haveTexture_ = false; // a different video was loaded: never show the old frame
+		captureReportStart_ = -1.0;
+		capturedFramesInWindow_ = 0;
+	}
 	// Before the first frame is shown, capture once so the scene can start fading in;
 	// after that, copy only while the video is drawn, up to 60 times a second.
 	const bool due = !haveTexture_ ||
@@ -394,6 +399,18 @@ gs_texture_t *MotionPlayer::prepare(const std::vector<DrawOp> &ops, const Rect &
 			lastCapture_ = t;
 			haveTexture_ = true;
 			capturedGeneration_ = gen;
+			if (wanted) {
+				if (captureReportStart_ < 0.0)
+					captureReportStart_ = t;
+				++capturedFramesInWindow_;
+				const double window = t - captureReportStart_;
+				if (window >= 10.0) {
+					blog(LOG_INFO, "[tonearm] animation capture performance: %.1f fps, %ux%u px",
+					     static_cast<double>(capturedFramesInWindow_) / window, tw, th);
+					captureReportStart_ = t;
+					capturedFramesInWindow_ = 0;
+				}
+			}
 		}
 	}
 	obs_source_release(child);
