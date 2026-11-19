@@ -86,7 +86,7 @@ The README's images are built by the scripts in `tools/media`, which add a timel
 
 - **Linux**: builds the core, plugin and tools against Ubuntu's libobs, and runs the unit tests.
 - **Windows**: builds libobs 30.2.3 (cached between runs), builds Tonearm with MSVC, runs the unit tests with the DirectWrite backend, and uploads the plugin zip and a separate debug-symbol zip.
-- **Release**: pushing a tag such as `v0.2.0` builds both platforms, then publishes a GitHub release with the plugin zip and the symbols zip. The notes come from `docs/release-notes/<tag>.md` when that file exists, otherwise from the matching section of `CHANGELOG.md`. The Package step fails if the DLL or locale files are missing and prints every entry of the zip, so the layout can be checked in the job log.
+- **Release**: pushing a tag such as `v0.2.0`, or running the Build workflow by hand with **release_tag** set to `v0.2.0`, builds both platforms, then publishes a GitHub release (a manual run creates the tag on the commit it built, and refuses a tag that doesn't match the version in `CMakeLists.txt`) with the plugin zip and the symbols zip. The notes come from `docs/release-notes/<tag>.md` when that file exists, otherwise from the matching section of `CHANGELOG.md`. The Package step fails if the DLL or locale files are missing and prints every entry of the zip, so the layout can be checked in the job log.
 
 ## Versioning
 
