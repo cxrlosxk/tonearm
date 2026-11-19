@@ -54,11 +54,12 @@ void MotionPlayer::configure(const Style &style)
 {
 	const bool want = wantsMotion(style);
 	pauseWithMusic_ = style.motionPause == MotionPause::WithMusic;
-	if (want == enabled_.load() && (!want || style.motionFolder == folder_))
+	if (want == enabled_.load() && (!want || (style.motionFolder == folder_ && style.motionQuality == quality_.load())))
 		return;
 
 	teardown();
 	folder_ = style.motionFolder;
+	quality_.store(style.motionQuality);
 	if (!want)
 		return;
 
@@ -188,6 +189,7 @@ void MotionPlayer::tick(const MediaSession *session, bool showing, MotionShape p
 			q.album = session->track.album;
 			q.title = session->track.title;
 			q.preferred = preferred;
+			q.quality = quality_.load();
 			std::lock_guard<std::mutex> lock(mutex_);
 			wantedSerial_ = ++serial_;
 			wantedIdentity_ = identity;
