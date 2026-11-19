@@ -38,7 +38,7 @@ public:
 	void configure(const Style &style);
 
 	// Graphics thread, every tick, also while hidden. `session` may be null.
-	void tick(const MediaSession *session, bool showing, MotionShape preferred);
+	void tick(const MediaSession *session, bool showing, MotionShape preferred, float artworkSize = 0.0f);
 
 	// Graphics thread: what the scene should know this frame.
 	MotionFrame frame() const;
@@ -56,7 +56,8 @@ private:
 
 	// Configuration (UI thread)
 	std::string folder_;
-	std::atomic<MotionQuality> quality_{MotionQuality::Maximum};
+	std::atomic<MotionQuality> quality_{MotionQuality::Smart};
+	std::atomic<MotionQuality> effectiveQuality_{MotionQuality::Balanced};
 	MotionPause pause_ = MotionPause::WithMusic;
 	std::atomic<bool> enabled_{false};
 	std::atomic<bool> pauseWithMusic_{true};
