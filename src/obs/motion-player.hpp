@@ -56,6 +56,7 @@ private:
 
 	// Configuration (UI thread)
 	std::string folder_;
+	std::atomic<MotionQuality> quality_{MotionQuality::Maximum};
 	MotionPause pause_ = MotionPause::WithMusic;
 	std::atomic<bool> enabled_{false};
 	std::atomic<bool> pauseWithMusic_{true};
