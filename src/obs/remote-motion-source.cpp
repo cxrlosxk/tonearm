@@ -159,7 +159,7 @@ std::optional<MotionAsset> RemoteArtworkApiSource::resolve(const MotionQuery &q,
 	// decodes the moving playlist over HTTP. Cache the complete finite VOD
 	// locally first, then give OBS its own normal file-backed HLS playlist.
 	// Never pass an incomplete download or a remote URL to the video renderer.
-	auto cached = cacheMotionHls(chosen, cancelled);
+	auto cached = cacheMotionHls(chosen, cancelled, q.quality);
 	if (!cached) {
 		blog(LOG_WARNING, "[tonearm] remote animation could not be cached; using still cover");
 		return std::nullopt;
