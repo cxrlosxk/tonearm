@@ -92,6 +92,12 @@ If the cover is still static after an uncached album has played for 30 seconds, 
 
 The Windows CI suite covers compilation, core matching/resolver tests, and live Apple HLS download/album-index checks. It does **not** reproduce the actual GPU, Apple Music app, or OBS scene layout on every viewer's PC.
 
+## Soundtrack credits and fluidity
+
+Some Apple Music soundtracks credit the album to composers or producers even when Windows reports an individual singer for the playing track. Tonearm accepts this mismatch **only after** the public iTunes catalog verifies the exact soundtrack album edition and confirms that the named track belongs to that album and performer. For example, the 2023 *The Little Mermaid* soundtrack is credited to Alan Menken & Howard Ashman, while the track “Part of Your World (Reprise)” is credited to Halle.
+
+The Apple Music *143* full-motion stream advertises a native frame rate of 24 FPS. Tonearm supports up to 60 overlay-frame captures per second to avoid dropping those source frames on a higher-refresh OBS canvas. It does not claim to make original 24 FPS artwork into real 60 FPS video. For accurate fluidity diagnostics, OBS logs `[tonearm] animation capture performance` with its effective capture rate every 10 seconds.
+
 ## Accurate video color
 
 OBS Studio's FFmpeg media source does not always expose frames in the same transfer encoding. Ordinary 8-bit SDR video can already be sRGB-encoded, while higher-precision sources may be rendered in linear light. Tonearm checks the private media source's **actual OBS color space** for each animation. It passes standard sRGB video to the compositor without another gamma conversion and applies a linear-to-sRGB transfer only for the appropriate high-precision SDR path. This prevents the over-bright, washed-out appearance that occurs if the transfer is applied to H.264/sRGB twice.
@@ -115,7 +121,7 @@ Decoding that video alone takes about 7% of one core. The rest of the difference
 The design choices that keep the cost down:
 
 - Each Tonearm source creates one private OBS media decoder. A source is not decoded twice merely because its scene is rendered multiple times. Multiple separately configured Tonearm sources can each have their own decoder.
-- Tonearm copies at most 30 frames a second into one reused cropped texture. Smart picks the 1080p H.264 stream for small overlays while keeping high-quality supersampling for the actual display size.
+- Tonearm can copy up to 60 frames per second into one reused cropped texture, never exceeding OBS's render cadence. This preserves the original decoded 24/30/60 FPS motion frames without inventing additional animation. Smart picks the efficient 1080p H.264 stream for compact overlays while retaining high-quality supersampling.
 - No copies happen while the still cover is shown, and decoding is paused while the source is hidden.
 - File lookups run on their own thread, never on OBS's graphics or UI threads.
 
