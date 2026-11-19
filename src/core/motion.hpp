@@ -47,6 +47,7 @@ struct MotionAsset {
 struct MotionQuery {
 	std::string artist, albumArtist, album, title;
 	MotionShape preferred = MotionShape::Square;
+	MotionQuality quality = MotionQuality::Maximum;
 };
 
 // Region of a w x h video frame that fills a dstW x dstH box without distortion
