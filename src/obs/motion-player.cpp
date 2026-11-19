@@ -36,6 +36,7 @@ void MotionPlayer::teardown()
 		child_ = nullptr;
 		loadedIdentity_.clear();
 		loadedPath_.clear();
+		lastMissAt_ = {};
 		wantedSerial_ = 0;
 		wantedIdentity_.clear();
 	}
@@ -135,12 +136,16 @@ void MotionPlayer::deliver(uint64_t serial, const std::optional<MotionAsset> &as
 		obs_source_media_stop(child);
 		obs_source_output_video(child, nullptr);
 		std::lock_guard<std::mutex> lock(mutex_);
+		if (serial == wantedSerial_)
+			lastMissAt_ = std::chrono::steady_clock::now();
 		loadedPath_.clear();
 	} else if (samePath) {
 		// Same video (another track of the same album): keep it running seamlessly.
 		std::lock_guard<std::mutex> lock(mutex_);
-		if (serial == wantedSerial_)
+		if (serial == wantedSerial_) {
 			loadedIdentity_ = identity;
+			lastMissAt_ = {};
+		}
 	} else {
 		// Clear the previous frame so a stale cover can never be shown for this track,
 		// then open the new file. Opening may block briefly; this is not the graphics thread.
@@ -158,8 +163,10 @@ void MotionPlayer::deliver(uint64_t serial, const std::optional<MotionAsset> &as
 		obs_data_release(settings);
 		std::lock_guard<std::mutex> lock(mutex_);
 		loadedPath_ = asset->location;
-		if (serial == wantedSerial_)
+		if (serial == wantedSerial_) {
 			loadedIdentity_ = identity;
+			lastMissAt_ = {};
+		}
 		blog(LOG_INFO, "[tonearm] motion asset loaded; source=%s, shape=%s",
 		     asset->location.find("MotionCache") != std::string::npos ? "cached online HLS" :
 		     asset->location.rfind("https://", 0) == 0 ? "online" : "local",
@@ -181,7 +188,13 @@ void MotionPlayer::tick(const MediaSession *session, bool showing, MotionShape p
 	if (session && session->track.hasMetadata()) {
 		const std::string identity = session->track.identity();
 		const std::string key = identity + (preferred == MotionShape::Portrait ? "\x1fp" : "\x1fs");
-		if (key != requestedKey_) {
+		bool retryMiss = false;
+		if (key == requestedKey_) {
+			std::lock_guard<std::mutex> lock(mutex_);
+			retryMiss = lastMissAt_ != std::chrono::steady_clock::time_point{} &&
+				std::chrono::steady_clock::now() - lastMissAt_ > std::chrono::seconds(75);
+		}
+		if (key != requestedKey_ || retryMiss) {
 			requestedKey_ = key;
 			MotionQuery q;
 			q.artist = session->track.artist;
@@ -193,6 +206,7 @@ void MotionPlayer::tick(const MediaSession *session, bool showing, MotionShape p
 			std::lock_guard<std::mutex> lock(mutex_);
 			wantedSerial_ = ++serial_;
 			wantedIdentity_ = identity;
+			lastMissAt_ = {};
 			if (loadedIdentity_ != identity)
 				loadedIdentity_.clear();
 			if (resolver_)
