@@ -136,6 +136,87 @@ std::string getArtworkJson(const std::string &artist, const std::string &album,
 	return getJson(L"artwork.m8tec.top", path, cancelled, responseStatus);
 }
 
+// Track performers and soundtrack composers often differ (e.g. Halle versus
+// Alan Menken & Howard Ashman). Never accept the artist mismatch just because
+// two soundtrack titles look similar. Validate both the official album credit
+// and the exact track/performer using Apple's public iTunes Search/Lookup API.
+bool verifySoundtrackPerformer(const MotionQuery &q, const std::string &motionArtist,
+			      const std::string &motionAlbum, const std::atomic<bool> &cancelled)
+{
+	if (cancelled || q.title.empty() || q.artist.empty() ||
+	    normalizeName(q.album).find("soundtrack") == std::string::npos ||
+	    normalizeName(q.album) != normalizeName(motionAlbum))
+		return false;
+	DWORD status = 0;
+	const std::string catalogPath = "/search?term=" + percentEncode(q.album) +
+					"&entity=album&country=US&limit=35";
+	const std::string jsonText = getJson(L"itunes.apple.com", catalogPath, cancelled, &status);
+	if (status != 200 || jsonText.empty() || cancelled)
+		return false;
+	obs_data_t *root = obs_data_create_from_json(jsonText.c_str());
+	if (!root)
+		return false;
+	std::vector<CatalogAlbum> candidates;
+	obs_data_array_t *albums = obs_data_get_array(root, "results");
+	if (albums) {
+		const size_t limit = std::min<size_t>(obs_data_array_count(albums), 35);
+		for (size_t i = 0; i < limit; ++i) {
+			obs_data_t *item = obs_data_array_item(albums, i);
+			if (!item)
+				continue;
+			const std::string officialArtist = obs_data_get_string(item, "artistName");
+			const std::string officialAlbum = obs_data_get_string(item, "collectionName");
+			const auto rawId = obs_data_get_int(item, "collectionId");
+			obs_data_release(item);
+			if (rawId <= 0 || normalizeName(officialAlbum) != normalizeName(q.album) ||
+			    normalizeName(officialArtist) != normalizeName(motionArtist))
+				continue;
+			candidates.push_back({static_cast<std::uint64_t>(rawId), officialArtist, officialAlbum});
+			if (candidates.size() >= 4)
+				break;
+		}
+		obs_data_array_release(albums);
+	}
+	obs_data_release(root);
+	// Catalog verification is bounded so switching tracks never starts a long
+	// sequence of public API calls.
+	for (const auto &album : candidates) {
+		if (cancelled)
+			return false;
+		const auto path = "/lookup?id=" + std::to_string(album.id) + "&entity=song&limit=200";
+		status = 0;
+		const std::string tracks = getJson(L"itunes.apple.com", path, cancelled, &status);
+		if (status != 200 || tracks.empty() || cancelled)
+			continue;
+		obs_data_t *catalog = obs_data_create_from_json(tracks.c_str());
+		if (!catalog)
+			continue;
+		bool verified = false;
+		obs_data_array_t *items = obs_data_get_array(catalog, "results");
+		if (items) {
+			const size_t count = std::min<size_t>(obs_data_array_count(items), 200);
+			for (size_t i = 0; i < count && !verified; ++i) {
+				obs_data_t *item = obs_data_array_item(items, i);
+				if (!item)
+					continue;
+				const auto trackAlbumId = obs_data_get_int(item, "collectionId");
+				const std::string artist = obs_data_get_string(item, "artistName");
+				const std::string title = obs_data_get_string(item, "trackName");
+				obs_data_release(item);
+				if (trackAlbumId == static_cast<int64_t>(album.id))
+					verified = verifiedSoundtrackTrack(q, album, motionArtist, motionAlbum, artist, title);
+			}
+			obs_data_array_release(items);
+		}
+		obs_data_release(catalog);
+		if (verified) {
+			blog(LOG_INFO, "[tonearm] soundtrack artist credit verified through official iTunes track list");
+			return true;
+		}
+	}
+	return false;
+}
+
 // The service's artist/album search has a long-lived negative cache and may
 // incorrectly return 404 for real albums. Public iTunes Search can identify
 // their catalog IDs without any Apple Music session credentials; the independent
@@ -212,8 +293,9 @@ std::optional<MotionAsset> resolveWithCatalogId(const MotionQuery &q, const std:
 		const std::string tall = obs_data_get_string(json, "url_tall");
 		obs_data_release(json);
 
-		if (!catalogArtistMatches(q, foundArtist) ||
-		    !compatibleMotionAlbumTitle(q.album, foundAlbum))
+		if (!compatibleMotionAlbumTitle(q.album, foundAlbum) ||
+		    (!catalogArtistMatches(q, foundArtist) &&
+		     !verifySoundtrackPerformer(q, foundArtist, foundAlbum, cancelled)))
 			continue;
 		const bool portrait = q.preferred == MotionShape::Portrait;
 		const std::string chosen = portrait && trustedVideoUrl(tall) ? tall :
@@ -300,7 +382,8 @@ std::optional<MotionAsset> RemoteArtworkApiSource::resolve(const MotionQuery &q,
 		obs_data_release(json);
 
 		if (!compatibleMotionAlbumTitle(q.album, responseAlbum) ||
-		    !catalogArtistMatches(q, responseArtist)) {
+		    (!catalogArtistMatches(q, responseArtist) &&
+		     !verifySoundtrackPerformer(q, responseArtist, responseAlbum, cancelled))) {
 			blog(LOG_INFO, "[tonearm] rejected ambiguous motion artwork candidate; exact release not confirmed");
 			continue;
 		}
