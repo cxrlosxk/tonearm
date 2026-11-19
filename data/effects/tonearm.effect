@@ -86,6 +86,19 @@ float coverage_round_rect(float2 p, float2 center, float2 h, float r)
 	return saturate(0.5 - sd_round_rect(p - center, h, rr));
 }
 
+// OBS's FFmpeg video child is captured into a linear-light GS_RGBA
+// intermediate. Tonearm's still-artwork textures and premultiplied compositor,
+// however, use sRGB-encoded RGB values with framebuffer sRGB conversion off.
+// Without this transfer function, video midtones are rendered too dark and
+// its colors appear heavily saturated compared with the Apple Music cover.
+float3 VideoLinearToSrgb(float3 linearValue)
+{
+	float3 x = saturate(linearValue);
+	float3 low = 12.92 * x;
+	float3 high = 1.055 * pow(x, float3(1.0 / 2.4, 1.0 / 2.4, 1.0 / 2.4)) - 0.055;
+	return lerp(low, high, step(float3(0.0031308, 0.0031308, 0.0031308), x));
+}
+
 // Mirrors videoCoverage() in src/core/compositor_cpu.cpp.
 float4 PSVideo(VertData v_in) : TARGET
 {
@@ -100,6 +113,10 @@ float4 PSVideo(VertData v_in) : TARGET
 		a *= t * t * (3.0 - 2.0 * t);
 	}
 	float4 c = image.Sample(linear_clamp, v_in.uv);
+	// Convert only the captured video, not Tonearm's already-sRGB still layers.
+	// Preserve linear video texture values until sampling to avoid premature
+	// gamma quantization; convert once immediately before sRGB compositing.
+	c.rgb = VideoLinearToSrgb(c.rgb);
 	c.rgb = lerp(c.rgb, color.rgb, color.a); // paused dim: tint toward the card tone
 	c.rgb *= c.a; // video frames are straight alpha (normally opaque)
 	return c * (a * opacity);
