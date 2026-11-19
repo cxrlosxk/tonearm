@@ -17,10 +17,15 @@ void MediaService::acquire()
 {
 	std::lock_guard<std::mutex> lock(mutex_);
 	if (refs_++ == 0 && !provider_) {
+		// Read once, when the first Tonearm source is created.
 #ifdef _MSC_VER
-#pragma warning(suppress : 4996) // read once, when the first Tonearm source is created
+#pragma warning(push)
+#pragma warning(disable : 4996)
 #endif
 		const bool scripted = std::getenv("TONEARM_SCRIPTED_MEDIA") != nullptr;
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 		provider_ = scripted ? createScriptedProvider() : createSystemProvider();
 		provider_->start();
 		blog(LOG_INFO, "[tonearm] %s media provider started", scripted ? "scripted test" : "system");
