@@ -21,6 +21,16 @@ foreach ($q in $queries) {
             $streamResponse = Invoke-WebRequest -Uri $hls -Method Get -TimeoutSec 20
             $raw = $streamResponse.Content
             $manifest = if ($raw -is [byte[]]) { [Text.Encoding]::UTF8.GetString($raw) } else { [string]$raw }
+            Write-Host "HLS quality options for $($q.artist) / $($q.album):"
+            $manifest -split "`n" | ForEach-Object {
+                $variant = $_.Trim()
+                if ($variant.StartsWith('#EXT-X-STREAM-INF:')) {
+                    $codec = if ($variant -match 'avc1\\.') { 'H264' } elseif ($variant -match 'hvc1\\.') { 'HEVC' } else { 'other' }
+                    $res = if ($variant -match 'RESOLUTION=([0-9]+x[0-9]+)') { $Matches[1] } else { '?' }
+                    $bw = if ($variant -match 'BANDWIDTH=([0-9]+)') { [Math]::Round([double]$Matches[1]/1000000,2) } else { 0 }
+                    Write-Host "Full-video variant codec=$codec resolution=$res bandwidth=$bw Mbps"
+                }
+            }
             Write-Host "HLS primary playlist diagnostics:"
             $manifest -split "`n" | Select-Object -First 18 | ForEach-Object {
                 $ln = $_.Trim()
