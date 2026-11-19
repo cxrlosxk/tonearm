@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "remote-motion-source.hpp"
+#include "hls-cache.hpp"
+#include <obs-module.h>
 #include "media/catalog_match.hpp"
 
 #ifdef _WIN32
@@ -153,7 +155,17 @@ std::optional<MotionAsset> RemoteArtworkApiSource::resolve(const MotionQuery &q,
 				   trustedVideoUrl(square) ? square : trustedVideoUrl(tall) ? tall : "";
 	if (chosen.empty())
 		return std::nullopt;
-	return MotionAsset{chosen, chosen == tall ? MotionShape::Portrait : MotionShape::Square};
+	// Apple's HLS masters are delivered reliably, but OBS may stall when FFmpeg
+	// decodes the moving playlist over HTTP. Cache the complete finite VOD
+	// locally first, then give OBS its own normal file-backed HLS playlist.
+	// Never pass an incomplete download or a remote URL to the video renderer.
+	auto cached = cacheMotionHls(chosen, cancelled);
+	if (!cached) {
+		blog(LOG_WARNING, "[tonearm] remote animation could not be cached; using still cover");
+		return std::nullopt;
+	}
+	blog(LOG_INFO, "[tonearm] cached genuine animated artwork for offline decoding");
+	return MotionAsset{*cached, chosen == tall ? MotionShape::Portrait : MotionShape::Square};
 }
 
 } // namespace tonearm
