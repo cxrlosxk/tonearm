@@ -55,8 +55,9 @@ std::optional<MotionAsset> LocalFolderSource::resolve(const MotionQuery &q, cons
 
 // --- MotionResolver -----------------------------------------------------------
 
-MotionResolver::MotionResolver(std::unique_ptr<MotionSource> source, Deliver deliver, std::chrono::milliseconds negativeTtl)
-	: source_(std::move(source)), deliver_(std::move(deliver)), negativeTtl_(negativeTtl)
+MotionResolver::MotionResolver(std::unique_ptr<MotionSource> source, Deliver deliver, std::chrono::milliseconds negativeTtl,
+			       std::chrono::milliseconds positiveTtl)
+	: source_(std::move(source)), deliver_(std::move(deliver)), negativeTtl_(negativeTtl), positiveTtl_(positiveTtl)
 {
 	thread_ = std::thread([this] { run(); });
 }
@@ -121,7 +122,8 @@ void MotionResolver::run()
 
 		// Cache hit (positive answers are kept; negative ones expire).
 		auto it = cache_.find(key);
-		if (it != cache_.end() && (it->second.asset || std::chrono::steady_clock::now() - it->second.at < negativeTtl_)) {
+		if (it != cache_.end() && std::chrono::steady_clock::now() - it->second.at <
+					(it->second.asset ? positiveTtl_ : negativeTtl_)) {
 			const auto asset = it->second.asset;
 			lock.unlock();
 			deliver_(serial, asset);
