@@ -58,7 +58,12 @@ endif()
 # OBS plugin
 # ---------------------------------------------------------------------------
 if(TONEARM_BUILD_PLUGIN)
-  find_package(libobs QUIET)
+  if(WIN32)
+    # The libobs SDK built from OBS's source (see docs/building.md) installs a CMake package.
+    find_package(libobs REQUIRED)
+  else()
+    find_package(libobs QUIET)
+  endif()
   if(NOT libobs_FOUND)
     # Distribution packages (e.g. Debian's libobs-dev) ship pkg-config files only.
     find_package(PkgConfig REQUIRED)

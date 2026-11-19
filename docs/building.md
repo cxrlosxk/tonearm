@@ -18,17 +18,20 @@ You need:
 ```powershell
 git clone --depth 1 --branch 30.2.3 https://github.com/obsproject/obs-studio.git
 cd obs-studio
-cmake --preset windows-x64 -DENABLE_UI=OFF -DENABLE_PLUGINS=OFF -DENABLE_SCRIPTING=OFF
-cmake --build build_x64 --target libobs --config RelWithDebInfo
+git submodule update --init --recursive --depth 1 plugins/win-dshow/libdshowcapture
+cmake --preset windows-x64 -DENABLE_UI=OFF -DENABLE_PLUGINS=OFF -DENABLE_SCRIPTING=OFF `
+  -DENABLE_BROWSER=OFF -DVIRTUALCAM_GUID= -DOBS_VERSION_OVERRIDE=30.2.3
+cmake --build build_x64 --target obs-frontend-api --config RelWithDebInfo
 cmake --install build_x64 --component Development --config RelWithDebInfo --prefix C:\obs-sdk
 ```
 
-The `windows-x64` preset downloads OBS's prebuilt dependencies automatically. Building against an older libobs is deliberate: plugins compiled against 30.2 load in newer OBS releases, but not the other way around.
+The `windows-x64` preset downloads OBS's prebuilt dependencies automatically. OBS always configures a 32-bit slice alongside the 64-bit build, which is why the `libdshowcapture` submodule is needed even with plugins turned off. Building `obs-frontend-api` also builds libobs and `w32-pthreads`, so the install step finds every file it expects. Building against an older libobs is deliberate: plugins compiled against 30.2 load in newer OBS releases, but not the other way around.
 
 Then build Tonearm:
 
 ```powershell
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH=C:\obs-sdk
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH=C:\obs-sdk `
+  -Dlibobs_DIR=C:\obs-sdk\cmake\libobs -Dw32-pthreads_DIR=C:\obs-sdk\cmake\w32-pthreads
 cmake --build build --config RelWithDebInfo
 ctest --test-dir build -C RelWithDebInfo --output-on-failure
 cmake --install build --config RelWithDebInfo --prefix stage

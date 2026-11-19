@@ -82,6 +82,8 @@ jobs:
         run: >
           cmake -S . -B build -G "Visual Studio 17 2022" -A x64
           -DCMAKE_PREFIX_PATH="${{ runner.temp }}/obs-sdk"
+          -Dlibobs_DIR="${{ runner.temp }}/obs-sdk/cmake/libobs"
+          -Dw32-pthreads_DIR="${{ runner.temp }}/obs-sdk/cmake/w32-pthreads"
           -DTONEARM_BUILD_TESTS=ON
 
       - name: Build
