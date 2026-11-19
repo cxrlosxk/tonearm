@@ -209,6 +209,33 @@ void MotionPlayer::tick(const MediaSession *session, bool showing, MotionShape p
 			appliedGeneration_ = gen;
 		}
 	}
+	// An HLS VOD may reach ENDED when FFmpeg cannot seek back to the
+	// beginning. Because the private child is now explicitly "showing",
+	// OBS's media_restart can reopen it. Rate-limit retries and do not
+	// restart a paused, hidden, or unrelated track.
+	if (showing && session && session->status != PlaybackStatus::Paused) {
+		bool loaded = false;
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			loaded = !loadedIdentity_.empty();
+		}
+		if (loaded) {
+			const auto now = std::chrono::steady_clock::now();
+			const obs_media_state st = obs_source_media_get_state(child);
+			if (now - lastDiagnosticsAt_ >= std::chrono::seconds(8)) {
+				blog(LOG_INFO, "[tonearm] motion playback: state=%d, elapsed_ms=%lld, duration_ms=%lld, showing=%d",
+				     static_cast<int>(st),
+				     static_cast<long long>(obs_source_media_get_time(child)),
+				     static_cast<long long>(obs_source_media_get_duration(child)), showing ? 1 : 0);
+				lastDiagnosticsAt_ = now;
+			}
+			if (st == OBS_MEDIA_STATE_ENDED && now - lastRestartAt_ >= std::chrono::seconds(3)) {
+				blog(LOG_INFO, "[tonearm] motion VOD reached end; reopening loop");
+				obs_source_media_restart(child);
+				lastRestartAt_ = now;
+			}
+		}
+	}
 	obs_source_release(child);
 }
 
