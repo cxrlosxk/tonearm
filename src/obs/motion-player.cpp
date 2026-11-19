@@ -323,6 +323,18 @@ gs_texture_t *MotionPlayer::prepare(const std::vector<DrawOp> &ops, const Rect &
 	obs_source_t *child = childRef();
 	if (!child)
 		return nullptr;
+	// OBS provides already sRGB-encoded RGB for ordinary 8-bit SDR media.
+	// Its high-precision SDR format is linear and needs one transfer to match
+	// Tonearm's sRGB layers. Inspect actual decoder output rather than assuming
+	// HEVC = linear and H.264 = encoded; codecs can have different bit depths.
+	const auto videoColorSpace = obs_source_get_color_space(child, 0, nullptr);
+	videoNeedsSrgbEncode_ = videoColorSpace == GS_CS_SRGB_16F;
+	const uint64_t colorGeneration = loadGeneration_.load();
+	if (colorGeneration != loggedTransferGeneration_) {
+		blog(LOG_INFO, "[tonearm] motion video colorspace=%d; sRGB-encode=%s",
+		     static_cast<int>(videoColorSpace), videoNeedsSrgbEncode_ ? "yes" : "no");
+		loggedTransferGeneration_ = colorGeneration;
+	}
 	const uint32_t vw = obs_source_get_width(child), vh = obs_source_get_height(child);
 	if (vw == 0 || vh == 0 || box.empty()) {
 		obs_source_release(child);
