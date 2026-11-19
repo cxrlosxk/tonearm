@@ -29,7 +29,9 @@ foreach ($q in $queries) {
                     $codec = if ($variant -match 'avc1') { 'H264' } elseif ($variant -match 'hvc1') { 'HEVC' } else { 'other' }
                     $res = if ($variant -match 'RESOLUTION=([0-9]+x[0-9]+)') { $Matches[1] } else { '?' }
                     $bw = if ($variant -match 'BANDWIDTH=([0-9]+)') { [Math]::Round([double]$Matches[1]/1000000,2) } else { 0 }
-                    Write-Host "Full-video variant codec=$codec resolution=$res bandwidth=$bw Mbps"
+                    $range = if ($variant -match 'VIDEO-RANGE=([^,]+)') { $Matches[1] } else { 'unspecified' }
+                    $codecString = if ($variant -match 'CODECS="([^"]+)"') { $Matches[1] } else { 'unspecified' }
+                    Write-Host "Full-video variant codec=$codecString range=$range resolution=$res bandwidth=$bw Mbps"
                 }
             }
             Write-Host "HLS primary playlist diagnostics:"
