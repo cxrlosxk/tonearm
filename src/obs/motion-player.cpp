@@ -226,11 +226,11 @@ void MotionPlayer::tick(const MediaSession *session, bool showing, MotionShape p
 			appliedGeneration_ = gen;
 		}
 	}
-	// An HLS VOD may reach ENDED when FFmpeg cannot seek back to the
-	// beginning. Because the private child is now explicitly "showing",
-	// OBS's media_restart can reopen it. Rate-limit retries and do not
-	// restart a paused, hidden, or unrelated track.
-	if (showing && session && session->status != PlaybackStatus::Paused) {
+	// Short Apple motion loops should continuously advance even when OBS keeps
+	// reporting PLAYING. Recover from missing loop transitions and rare stalled
+	// decoders without touching the current album's other UI layers.
+	const bool shouldRunVideo = showing && session && (!musicPaused || !pauseWithMusic_);
+	if (shouldRunVideo) {
 		bool loaded = false;
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
@@ -239,20 +239,40 @@ void MotionPlayer::tick(const MediaSession *session, bool showing, MotionShape p
 		if (loaded) {
 			const auto now = std::chrono::steady_clock::now();
 			const obs_media_state st = obs_source_media_get_state(child);
+			const int64_t elapsed = obs_source_media_get_time(child);
+			if (gen != lastObservedGeneration_) {
+				lastObservedGeneration_ = gen;
+				lastObservedMediaTime_ = elapsed;
+				lastPlaybackProgressAt_ = now;
+			}
+			if (elapsed >= 0 && elapsed != lastObservedMediaTime_) {
+				lastObservedMediaTime_ = elapsed;
+				lastPlaybackProgressAt_ = now;
+			}
 			if (now - lastDiagnosticsAt_ >= std::chrono::seconds(8)) {
 				blog(LOG_INFO, "[tonearm] motion playback: state=%d, elapsed_ms=%lld, duration_ms=%lld, showing=%d",
 				     static_cast<int>(st),
-				     static_cast<long long>(obs_source_media_get_time(child)),
+				     static_cast<long long>(elapsed),
 				     static_cast<long long>(obs_source_media_get_duration(child)), showing ? 1 : 0);
 				lastDiagnosticsAt_ = now;
 			}
-			if (st == OBS_MEDIA_STATE_ENDED && now - lastRestartAt_ >= std::chrono::seconds(3)) {
-				blog(LOG_INFO, "[tonearm] motion VOD reached end; reopening loop");
+			const bool reachedEnd = st == OBS_MEDIA_STATE_ENDED;
+			const bool stopped = st == OBS_MEDIA_STATE_STOPPED &&
+					     now - lastPlaybackProgressAt_ >= std::chrono::seconds(7);
+			const bool stalled = st == OBS_MEDIA_STATE_PLAYING &&
+					    now - lastPlaybackProgressAt_ >= std::chrono::seconds(9);
+			if ((reachedEnd || stopped || stalled) &&
+			    now - lastRestartAt_ >= std::chrono::seconds(15)) {
+				blog(LOG_WARNING, "[tonearm] motion playback %s; attempting bounded restart",
+				     reachedEnd ? "ended" : stopped ? "stopped" : "stalled");
 				obs_source_media_restart(child);
 				lastRestartAt_ = now;
+				lastObservedMediaTime_ = -1;
+				lastPlaybackProgressAt_ = now;
 			}
 		}
 	}
+
 	obs_source_release(child);
 }
 
