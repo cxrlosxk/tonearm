@@ -179,21 +179,25 @@ std::optional<std::string> quotedUri(const std::string &tag)
 	return tag.substr(start, end - start);
 }
 
-std::optional<std::string> chooseMediaPlaylist(const std::string &master, const std::string &url)
+std::vector<std::string> chooseMediaPlaylists(const std::string &master, const std::string &url, MotionQuality quality)
 {
 	struct Variant {
 		std::string url;
-		int pixels = -1, bandwidth = -1;
+		int area = 0, bandwidth = 0;
+		bool h264 = true;
 	};
-	std::optional<Variant> chosen;
+	std::vector<Variant> variants;
 	const auto rows = lines(master);
-	for (size_t i = 0; i < rows.size(); ++i) {
+	for (size_t i = 0; i + 1 < rows.size(); ++i) {
 		const auto &line = rows[i];
-		if (line.rfind("#EXT-X-STREAM-INF:", 0) != 0 || i + 1 >= rows.size())
+		// EXCLUDE #EXT-X-I-FRAME-STREAM-INF. Those higher-resolution trick-play
+		// thumbnails contain sparse keyframes, not continuously moving artwork.
+		if (line.rfind("#EXT-X-STREAM-INF:", 0) != 0)
 			continue;
 		const bool h264 = line.find("avc1.") != std::string::npos;
-		if (!h264)
-			continue; // H.264 is widely supported and avoids HEVC hardware color quirks.
+		const bool hevc = line.find("hvc1.") != std::string::npos;
+		if (!h264 && !(quality == MotionQuality::Maximum && hevc))
+			continue;
 		const auto next = absoluteUrl(url, rows[i + 1]);
 		if (!next)
 			continue;
@@ -204,13 +208,23 @@ std::optional<std::string> chooseMediaPlaylist(const std::string &master, const 
 		pos = line.find("BANDWIDTH=");
 		if (pos != std::string::npos)
 			sscanf_s(line.c_str() + pos, "BANDWIDTH=%d", &bitrate);
-		if (width < 1 || height < 1 || width > 2160 || height > 2160)
+		const int limit = quality == MotionQuality::Maximum ? 2160 : 1080;
+		if (width < 1 || height < 1 || width > limit || height > limit)
 			continue;
-		const int area = width * height;
-		if (!chosen || area > chosen->pixels || (area == chosen->pixels && bitrate > chosen->bandwidth))
-			chosen = Variant{*next, area, bitrate};
+		variants.push_back(Variant{*next, width * height, bitrate, h264});
 	}
-	return chosen ? std::optional<std::string>{chosen->url} : std::nullopt;
+	std::stable_sort(variants.begin(), variants.end(), [](const Variant &a, const Variant &b) {
+		if (a.area != b.area)
+			return a.area > b.area;
+		if (a.h264 != b.h264)
+			return a.h264; // same-size H.264 is more widely compatible.
+		return a.bandwidth > b.bandwidth;
+	});
+	std::vector<std::string> result;
+	for (const auto &v : variants)
+		if (std::find(result.begin(), result.end(), v.url) == result.end())
+			result.push_back(v.url);
+	return result;
 }
 
 std::string utf8Path(const fs::path &p)
@@ -380,7 +394,7 @@ std::wstring cacheKey(const std::string &url)
 }
 } // namespace
 
-std::optional<std::string> cacheMotionHls(const std::string &playlistUrl, const std::atomic<bool> &cancelled)
+std::optional<std::string> cacheMotionHls(const std::string &playlistUrl, const std::atomic<bool> &cancelled, MotionQuality quality)
 {
 	if (!appleCdnUrl(playlistUrl) || cancelled)
 		return std::nullopt;
@@ -396,7 +410,8 @@ std::optional<std::string> cacheMotionHls(const std::string &playlistUrl, const 
 	if (ec)
 		return std::nullopt;
 
-	const auto key = cacheKey(playlistUrl);
+	// Quality variants must not reuse a previous lower-resolution cached file.
+	const auto key = cacheKey(playlistUrl + (quality == MotionQuality::Maximum ? "|max" : "|balanced"));
 	const fs::path finished = root / key;
 	const fs::path mp4Dest = finished / L"artwork.mp4";
 	const fs::path playlistDest = finished / L"artwork.m3u8";
@@ -408,54 +423,63 @@ std::optional<std::string> cacheMotionHls(const std::string &playlistUrl, const 
 	}
 
 	const fs::path building = root / (key + L"-building");
-	fs::remove_all(building, ec);
-	ec.clear();
-	fs::create_directories(building, ec);
-	if (ec)
-		return std::nullopt;
-
 	auto fail = [&]() -> std::optional<std::string> {
 		std::error_code ignored;
 		fs::remove_all(building, ignored);
 		return std::nullopt;
 	};
-	std::string playlist;
-	if (!fetch(playlistUrl, kMaxManifest, playlist, cancelled)) {
+	std::string master;
+	if (!fetch(playlistUrl, kMaxManifest, master, cancelled)) {
 		cacheTrace("master GET failed");
 		return fail();
 	}
 	cacheTrace("master loaded");
-	std::string mediaUrl = playlistUrl;
-	if (playlist.find("#EXT-X-STREAM-INF:") != std::string::npos) {
-		const auto choice = chooseMediaPlaylist(playlist, playlistUrl);
-		if (!choice) {
-			cacheTrace("no H264 variant");
-			return fail();
-		}
-		mediaUrl = *choice;
-		if (!fetch(mediaUrl, kMaxManifest, playlist, cancelled)) {
-			cacheTrace("variant GET failed");
-			return fail();
-		}
-		cacheTrace("H264 variant loaded");
-	}
-	const auto nativeMp4 = cacheSingleMp4(playlist, mediaUrl, building, cancelled);
-	if (!nativeMp4) {
-		if (!createCache(playlist, mediaUrl, building, cancelled)) {
-			cacheTrace("media segment staging failed");
-			return fail();
-		}
-		cacheTrace("all video segments staged");
-	}
-	fs::remove_all(finished, ec);
-	ec.clear();
-	fs::rename(building, finished, ec);
-	if (ec) {
-		cacheTrace("failed to finalize cache directory");
+
+	const auto candidates = master.find("#EXT-X-STREAM-INF:") != std::string::npos ?
+				chooseMediaPlaylists(master, playlistUrl, quality) :
+				std::vector<std::string>{playlistUrl};
+	if (candidates.empty()) {
+		cacheTrace("no compatible full-motion video variants");
 		return fail();
 	}
-	cacheTrace("complete cache available");
-	return utf8Path(nativeMp4 ? (finished / L"artwork.mp4") : (finished / L"artwork.m3u8"));
+	// Quality first, then fall back to less demanding streams if an ultra
+	// rendition is unavailable or exceeds the per-video 100 MB safety cap.
+	for (const auto &mediaUrl : candidates) {
+		if (cancelled)
+			return fail();
+		ec.clear();
+		fs::remove_all(building, ec);
+		ec.clear();
+		fs::create_directories(building, ec);
+		if (ec)
+			return fail();
+
+		std::string media;
+		if (mediaUrl == playlistUrl)
+			media = master;
+		else if (!fetch(mediaUrl, kMaxManifest, media, cancelled))
+			continue;
+
+		const auto mp4 = cacheSingleMp4(media, mediaUrl, building, cancelled);
+		bool ready = static_cast<bool>(mp4);
+		if (!ready && media.find("#EXT-X-BYTERANGE:") == std::string::npos)
+			ready = static_cast<bool>(createCache(media, mediaUrl, building, cancelled));
+		if (!ready)
+			continue;
+
+		ec.clear();
+		fs::remove_all(finished, ec);
+		ec.clear();
+		fs::rename(building, finished, ec);
+		if (ec) {
+			cacheTrace("failed to finalize cache directory");
+			return fail();
+		}
+		cacheTrace("complete high-fidelity local video available");
+		return utf8Path(mp4 ? mp4Dest : playlistDest);
+	}
+	cacheTrace("no video quality rendition downloaded successfully");
+	return fail();
 }
 
 } // namespace tonearm
