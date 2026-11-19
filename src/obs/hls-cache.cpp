@@ -40,6 +40,11 @@ constexpr size_t kMaxSegment = 20 * 1024 * 1024;
 constexpr size_t kMaxEntireAlbum = 100 * 1024 * 1024;
 constexpr size_t kMaxSegments = 128;
 std::mutex cacheMutex;
+void cacheTrace(const char *stage) {
+  char flag[2]{};
+  if (GetEnvironmentVariableA("TONEARM_HLS_DIAGNOSTICS", flag, 2))
+    std::fprintf(stderr, "[Tonearm HLS diagnostic] %s\n", stage);
+}
 
 bool appleCdnUrl(const std::string &url)
 {
@@ -240,12 +245,16 @@ std::optional<std::string> createCache(const std::string &media, const std::stri
 				       const std::atomic<bool> &cancelled)
 {
 	const auto rows = lines(media);
-	if (rows.empty() || rows[0] != "#EXTM3U" || media.find("#EXT-X-ENDLIST") == std::string::npos)
-		return std::nullopt; // Only finite VOD artwork can loop reliably.
+	if (rows.empty() || rows[0] != "#EXTM3U" || media.find("#EXT-X-ENDLIST") == std::string::npos) {
+		cacheTrace("media playlist missing ENDLIST");
+		return std::nullopt;
+	} // Only finite VOD artwork can loop reliably.
 	if (media.find("#EXT-X-KEY:") != std::string::npos ||
 	    media.find("#EXT-X-SESSION-KEY:") != std::string::npos ||
-	    media.find("#EXT-X-STREAM-INF:") != std::string::npos)
-		return std::nullopt; // Never decrypt media or accidentally cache a master.
+	    media.find("#EXT-X-STREAM-INF:") != std::string::npos) {
+		cacheTrace("unsupported encrypted or master playlist");
+		return std::nullopt;
+	} // Never decrypt media or accidentally cache a master.
 
 	std::string rewritten;
 	size_t total = 0, count = 0;
@@ -349,24 +358,38 @@ std::optional<std::string> cacheMotionHls(const std::string &playlistUrl, const 
 		return std::nullopt;
 	};
 	std::string playlist;
-	if (!fetch(playlistUrl, kMaxManifest, playlist, cancelled))
+	if (!fetch(playlistUrl, kMaxManifest, playlist, cancelled)) {
+		cacheTrace("master GET failed");
 		return fail();
+	}
+	cacheTrace("master loaded");
 	std::string mediaUrl = playlistUrl;
 	if (playlist.find("#EXT-X-STREAM-INF:") != std::string::npos) {
 		const auto choice = chooseMediaPlaylist(playlist, playlistUrl);
-		if (!choice)
+		if (!choice) {
+			cacheTrace("no H264 variant");
 			return fail();
+		}
 		mediaUrl = *choice;
-		if (!fetch(mediaUrl, kMaxManifest, playlist, cancelled))
+		if (!fetch(mediaUrl, kMaxManifest, playlist, cancelled)) {
+			cacheTrace("variant GET failed");
 			return fail();
+		}
+		cacheTrace("H264 variant loaded");
 	}
-	if (!createCache(playlist, mediaUrl, building, cancelled))
+	if (!createCache(playlist, mediaUrl, building, cancelled)) {
+		cacheTrace("media segment staging failed");
 		return fail();
+	}
+	cacheTrace("all video segments staged");
 	fs::remove_all(finished, ec);
 	ec.clear();
 	fs::rename(building, finished, ec);
-	if (ec)
+	if (ec) {
+		cacheTrace("failed to finalize cache directory");
 		return fail();
+	}
+	cacheTrace("complete cache available");
 	return utf8Path(dest);
 }
 
