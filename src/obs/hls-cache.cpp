@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cctype>
+#include <cstdio>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -207,6 +208,12 @@ std::optional<std::string> chooseMediaPlaylist(const std::string &master, const 
 	return chosen ? std::optional<std::string>{chosen->url} : std::nullopt;
 }
 
+std::string utf8Path(const fs::path &p)
+{
+	const auto value = p.u8string();
+	return {value.begin(), value.end()};
+}
+
 std::string extensionFor(const std::string &url)
 {
 	std::string path = url.substr(0, url.find_first_of("?#"));
@@ -291,7 +298,7 @@ std::optional<std::string> createCache(const std::string &media, const std::stri
 	if (!sawVideo || !save(dir / L"artwork.m3u8", rewritten) ||
 	    !save(dir / L".complete", "1"))
 		return std::nullopt;
-	return (dir / L"artwork.m3u8").u8string();
+	return utf8Path(dir / L"artwork.m3u8");
 }
 
 std::wstring cacheKey(const std::string &url)
@@ -327,7 +334,7 @@ std::optional<std::string> cacheMotionHls(const std::string &playlistUrl, const 
 	const fs::path finished = root / key;
 	const fs::path dest = finished / L"artwork.m3u8";
 	if (fs::exists(finished / L".complete", ec) && fs::exists(dest, ec))
-		return dest.u8string();
+		return utf8Path(dest);
 
 	const fs::path building = root / (key + L"-building");
 	fs::remove_all(building, ec);
