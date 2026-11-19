@@ -77,6 +77,26 @@ TEST("catalog: soundtrack match still requires exact album identity")
 	CHECK(!id);
 }
 
+TEST("motion: only compatible edition aliases share an animated cover")
+{
+	CHECK(compatibleMotionAlbumTitle("Doo-Wops & Hooligans (Deluxe)", "Doo-Wops & Hooligans"));
+	CHECK(compatibleMotionAlbumTitle("The Diary of Alicia Keys", "The Diary of Alicia Keys (20th Anniversary)"));
+	CHECK(compatibleMotionAlbumTitle("eternal sunshine deluxe: brighter days ahead", "eternal sunshine"));
+	CHECK(compatibleMotionAlbumTitle("B'Day (20th Anniversary Deluxe Edition)", "B'Day"));
+	CHECK(!compatibleMotionAlbumTitle("Midnights (3am Edition)", "Midnights (Deluxe Edition)"));
+	CHECK(!compatibleMotionAlbumTitle("Wicked: For Good - The Soundtrack", "Wicked: The Soundtrack"));
+	CHECK(!compatibleMotionAlbumTitle("The Diary of Alicia Keys", "The Diary of Alicia Keys II"));
+	CHECK(!compatibleMotionAlbumTitle("", "The Diary of Alicia Keys"));
+}
+
+TEST("motion: edition fallback query preserves the album identity")
+{
+	CHECK(motionBaseAlbumQuery("Doo-Wops & Hooligans (Deluxe)") == "Doo-Wops & Hooligans");
+	CHECK(motionBaseAlbumQuery("eternal sunshine deluxe: brighter days ahead") == "eternal sunshine");
+	CHECK(motionBaseAlbumQuery("The Diary of Alicia Keys").empty());
+	CHECK(motionBaseAlbumQuery("Wicked: For Good - The Soundtrack").empty());
+}
+
 TEST("catalog: missing identifiers and incomplete metadata are not accepted")
 {
 	CHECK(!exactCatalogAlbumId(current("", "19"), {{101, "Adele", "19"}}));
