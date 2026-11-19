@@ -6,7 +6,7 @@ A now-playing overlay for OBS Studio on Windows. Tonearm reads what Apple Music,
 
 ![A track change in each preset](docs/media/demo.gif)
 
-> **Status: 0.1.0, pre-release.** The rendering, layouts, settings and OBS integration run and are tested inside OBS. The Windows media connection (SMTC) is written but has not yet been run on a Windows machine. See [what has been verified](docs/testing.md) before relying on it for a stream.
+> **Status: 0.1.0, pre-release.** The rendering, layouts, settings and OBS integration are tested inside OBS on Linux, and the Windows build compiles and passes its unit tests in CI. The Windows media connection (SMTC) has not yet been run with real players. See [what has been verified](docs/testing.md) before relying on it for a stream.
 
 ## What it does
 

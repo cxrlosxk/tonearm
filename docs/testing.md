@@ -12,10 +12,10 @@ This page says plainly what has been checked, how, and what still needs a Window
 | Settings window, live preview, every group | Verified on Linux | Opened in OBS 30.0.2 and inspected |
 | Transitions, seek, pause/resume, long titles, missing artwork, player hand-off, idle | Verified on Linux with a scripted player | `TONEARM_SCRIPTED_MEDIA=1`, see below |
 | Preset or layout changes through obs-websocket | Verified on Linux | All 16 combinations switched live during the gallery capture |
-| DirectWrite text backend | Compiles (MinGW-w64 syntax check); not yet run | Needs Windows |
-| WIC artwork decoding | Compiles (MinGW-w64 syntax check); not yet run | Needs Windows |
-| SMTC media connection (Apple Music, Spotify, others) | Written, not yet compiled or run | Compiled by the Windows CI job; needs a real Windows session with players |
-| Windows package layout | Defined in CMake and CI; not yet produced | First CI run |
+| DirectWrite text backend | Verified in unit tests on Windows | The 48 unit tests pass on the Windows CI runner (MSVC 19.44), where text shaping and rasterization go through DirectWrite with the bundled fonts. Not yet seen inside OBS on Windows |
+| WIC artwork decoding | Compiles with MSVC; not yet run | Runs only when a player supplies artwork, so it needs a real Windows session |
+| SMTC media connection (Apple Music, Spotify, others) | Compiles with MSVC; not yet run | Needs a real Windows session with players |
+| Windows package layout | Produced by CI | The Windows job installs `obs-plugins\64bit\tonearm.dll` and `data\obs-plugins\tonearm\` and zips them, with debug symbols in a separate zip. Not yet installed into OBS on Windows |
 | High-DPI | By design | OBS sources render in canvas pixels, not screen pixels. Tonearm scales everything from the source's width and height, so a larger source is rendered sharper rather than stretched. |
 
 Until the Windows rows are checked, treat the Windows build as a preview.
