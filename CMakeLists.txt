@@ -110,7 +110,8 @@ endif()
 if(TONEARM_BUILD_TESTS)
   enable_testing()
   add_executable(tonearm-tests tests/main.cpp tests/test_color.cpp tests/test_image.cpp tests/test_media.cpp
-                               tests/test_layout.cpp tests/test_scene.cpp tests/test_raster.cpp tests/test_motion.cpp)
+                               tests/test_layout.cpp tests/test_scene.cpp tests/test_raster.cpp
+                               tests/test_text.cpp tests/test_motion.cpp)
   target_link_libraries(tonearm-tests PRIVATE tonearm_media)
   target_compile_definitions(tonearm-tests PRIVATE TONEARM_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
   add_test(NAME tonearm-tests COMMAND tonearm-tests)
