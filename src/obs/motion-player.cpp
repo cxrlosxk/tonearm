@@ -11,7 +11,7 @@
 namespace tonearm {
 
 namespace {
-constexpr double kMaxCaptureFps = 30.0; // plenty for cover loops; keeps GPU copies low
+constexpr double kMaxCaptureFps = 60.0; // match the fastest full-motion Apple artwork and 60 FPS OBS canvases
 }
 
 MotionPlayer::~MotionPlayer()
@@ -366,9 +366,9 @@ gs_texture_t *MotionPlayer::prepare(const std::vector<DrawOp> &ops, const Rect &
 	if (gen != capturedGeneration_)
 		haveTexture_ = false; // a different video was loaded: never show the old frame
 	// Before the first frame is shown, capture once so the scene can start fading in;
-	// after that, copy only while the video is actually drawn, at most 30 times a second.
+	// after that, copy only while the video is drawn, up to 60 times a second.
 	const bool due = !haveTexture_ ||
-			 (wanted && (sizeChanged || t - lastCapture_ >= 1.0 / kMaxCaptureFps - 1e-4 || t < lastCapture_));
+			 (wanted && (sizeChanged || shouldCaptureMotionFrame(t, lastCapture_, kMaxCaptureFps) || t < lastCapture_));
 	if (due) {
 		if (!texrender_)
 			texrender_ = gs_texrender_create(GS_RGBA, GS_ZS_NONE);
