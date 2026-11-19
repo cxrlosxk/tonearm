@@ -40,8 +40,12 @@ void MotionPlayer::teardown()
 		wantedIdentity_.clear();
 	}
 	resolver.reset(); // joins the resolver thread (it may be opening media) outside the lock
-	if (child)
+	if (child) {
+		// This private media source is a child, not a scene item. We explicitly
+		// hold a showing reference while it exists, so return it exactly once.
+		obs_source_dec_showing(child);
 		obs_source_release(child);
+	}
 	++loadGeneration_;
 	enabled_ = false;
 }
@@ -75,6 +79,11 @@ void MotionPlayer::configure(const Style &style)
 		return;
 	}
 	obs_source_set_muted(child, true); // motion artwork is silent; never feed the mixer
+	// A private OBS FFmpeg source is NOT automatically considered visible just
+	// because Tonearm renders it with obs_source_video_render(). Without an
+	// explicit showing reference, FFmpeg's media_restart callback refuses
+	// to start it. This matters most for short, finite Apple Music HLS loops.
+	obs_source_inc_showing(child);
 
 	std::unique_ptr<MotionSource> motionSource;
 #ifdef _WIN32
@@ -150,6 +159,9 @@ void MotionPlayer::deliver(uint64_t serial, const std::optional<MotionAsset> &as
 		loadedPath_ = asset->location;
 		if (serial == wantedSerial_)
 			loadedIdentity_ = identity;
+		blog(LOG_INFO, "[tonearm] motion asset loaded; source=%s, shape=%s",
+		     asset->location.rfind("https://", 0) == 0 ? "online" : "local",
+		     asset->shape == MotionShape::Portrait ? "portrait" : "square");
 	}
 	++loadGeneration_;
 	obs_source_release(child);
