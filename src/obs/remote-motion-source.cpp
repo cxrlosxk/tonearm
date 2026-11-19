@@ -69,8 +69,10 @@ bool trustedVideoUrl(const std::string &url)
 }
 
 std::string getArtworkJson(const std::string &artist, const std::string &album, const std::string &title,
-			   const std::atomic<bool> &cancelled)
+			   const std::atomic<bool> &cancelled, DWORD *responseStatus)
 {
+	if (responseStatus)
+		*responseStatus = 0;
 	if (cancelled)
 		return {};
 	std::string path = "/api/v1/artwork/search?artist=" + percentEncode(artist) +
@@ -99,7 +101,11 @@ std::string getArtworkJson(const std::string &artist, const std::string &album, 
 		return {};
 	DWORD status = 0, size = sizeof(status);
 	if (!WinHttpQueryHeaders(request, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
-				 WINHTTP_HEADER_NAME_BY_INDEX, &status, &size, WINHTTP_NO_HEADER_INDEX) || status != 200)
+				 WINHTTP_HEADER_NAME_BY_INDEX, &status, &size, WINHTTP_NO_HEADER_INDEX))
+		return {};
+	if (responseStatus)
+		*responseStatus = status;
+	if (status != 200)
 		return {};
 
 	std::string body;
@@ -130,42 +136,84 @@ std::optional<MotionAsset> RemoteArtworkApiSource::resolve(const MotionQuery &q,
 	if (q.artist.empty() || q.album.empty() || cancelled)
 		return std::nullopt;
 
-	const std::string artist = q.albumArtist.empty() ? q.artist : q.albumArtist;
-	const std::string body = getArtworkJson(artist, q.album, q.title, cancelled);
-	if (body.empty() || cancelled)
-		return std::nullopt;
+	struct Lookup {
+		std::string artist, album;
+	};
+	std::vector<Lookup> attempts;
+	auto add = [&](const std::string &artist, const std::string &album) {
+		if (artist.empty() || album.empty())
+			return;
+		for (const auto &item : attempts)
+			if (normalizeName(item.artist) == normalizeName(artist) &&
+			    normalizeName(item.album) == normalizeName(album))
+				return;
+		attempts.push_back({artist, album});
+	};
 
-	obs_data_t *json = obs_data_create_from_json(body.c_str());
-	if (!json)
-		return std::nullopt;
-	const std::string responseArtist = obs_data_get_string(json, "artist");
-	const std::string responseAlbum = obs_data_get_string(json, "album");
-	const std::string square = obs_data_get_string(json, "url");
-	const std::string tall = obs_data_get_string(json, "url_tall");
-	obs_data_release(json);
-
-	// This service uses fuzzy searching. Enforce exact release identity locally.
-	if (!(albumKey(responseAlbum) == albumKey(q.album)))
-		return std::nullopt;
-	if (!catalogArtistMatches(q, responseArtist))
-		return std::nullopt;
-
-	const bool portrait = q.preferred == MotionShape::Portrait;
-	const std::string chosen = portrait && trustedVideoUrl(tall) ? tall :
-				   trustedVideoUrl(square) ? square : trustedVideoUrl(tall) ? tall : "";
-	if (chosen.empty())
-		return std::nullopt;
-	// Apple's HLS masters are delivered reliably, but OBS may stall when FFmpeg
-	// decodes the moving playlist over HTTP. Cache the complete finite VOD
-	// locally first, then give OBS its own normal file-backed HLS playlist.
-	// Never pass an incomplete download or a remote URL to the video renderer.
-	auto cached = cacheMotionHls(chosen, cancelled, q.quality);
-	if (!cached) {
-		blog(LOG_WARNING, "[tonearm] remote animation could not be cached; using still cover");
-		return std::nullopt;
+	// The service can negatively cache the exact artist/album search for a
+	// month. Prefer the album (not track title) so a title mismatch cannot
+	// poison its cache, then try the album artist / track artist separately.
+	const std::string albumArtist = q.albumArtist.empty() ? q.artist : q.albumArtist;
+	const std::string base = motionBaseAlbumQuery(q.album);
+	add(albumArtist, q.album);
+	add(q.artist, q.album);
+	if (!base.empty()) {
+		add(albumArtist, base);
+		add(q.artist, base);
 	}
-	blog(LOG_INFO, "[tonearm] cached genuine animated artwork for offline decoding");
-	return MotionAsset{*cached, chosen == tall ? MotionShape::Portrait : MotionShape::Square};
+	const auto performerKeys = artistKeys(q.artist);
+	if (performerKeys.size() > 1 && attempts.size() < 5)
+		add(performerKeys.back(), base.empty() ? q.album : base);
+
+	size_t checked = 0;
+	for (const auto &search : attempts) {
+		if (cancelled)
+			return std::nullopt;
+		DWORD status = 0;
+		++checked;
+		const std::string body = getArtworkJson(search.artist, search.album, "", cancelled, &status);
+		if (cancelled)
+			return std::nullopt;
+		if (status == 429 || status == 503 || status == 0) {
+			blog(LOG_INFO, "[tonearm] motion lookup temporarily unavailable (HTTP %lu); using still cover",
+			     static_cast<unsigned long>(status));
+			break; // Respect provider rate limits and transient failures.
+		}
+		if (body.empty())
+			continue;
+		obs_data_t *json = obs_data_create_from_json(body.c_str());
+		if (!json)
+			continue;
+		const std::string responseArtist = obs_data_get_string(json, "artist");
+		const std::string responseAlbum = obs_data_get_string(json, "album");
+		const std::string square = obs_data_get_string(json, "url");
+		const std::string tall = obs_data_get_string(json, "url_tall");
+		obs_data_release(json);
+
+		if (!compatibleMotionAlbumTitle(q.album, responseAlbum) ||
+		    !catalogArtistMatches(q, responseArtist)) {
+			blog(LOG_INFO, "[tonearm] rejected ambiguous motion artwork candidate; exact release not confirmed");
+			continue;
+		}
+		const bool portrait = q.preferred == MotionShape::Portrait;
+		const std::string chosen = portrait && trustedVideoUrl(tall) ? tall :
+					   trustedVideoUrl(square) ? square : trustedVideoUrl(tall) ? tall : "";
+		if (chosen.empty())
+			continue;
+		auto cached = cacheMotionHls(chosen, cancelled, q.quality);
+		if (cached) {
+			blog(LOG_INFO, "[tonearm] animated artwork ready (query %zu/%zu, %s rendition)",
+			     checked, attempts.size(), q.quality == MotionQuality::Maximum ? "maximum" : "balanced");
+			return MotionAsset{*cached, chosen == tall ? MotionShape::Portrait : MotionShape::Square};
+		}
+		if (!cancelled)
+			blog(LOG_WARNING, "[tonearm] motion URL found but video cache/decoder preparation failed");
+		// Alternate artist spellings for this same album won't repair a broken
+		// video URL. Don't repeatedly download the same large asset.
+		break;
+	}
+	blog(LOG_INFO, "[tonearm] no compatible animated artwork resolved (%zu queries); using still cover", checked);
+	return std::nullopt;
 }
 
 } // namespace tonearm
