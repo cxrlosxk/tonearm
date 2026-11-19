@@ -126,8 +126,40 @@ foreach ($q in $coverage) {
             $identity = "$($data.artist) / $($data.album); square=$([bool]$data.url); tall=$([bool]$data.url_tall)"
         }
         Write-Host "Coverage probe: $($q.artist) / $($q.album) => HTTP $($response.StatusCode) $identity"
+        if ($response.StatusCode -eq 200 -and ($q.artist -eq 'Alicia Keys' -or $q.artist -eq 'Bruno Mars' -or ($q.artist -eq 'Ariana Grande' -and $q.album -eq 'eternal sunshine'))) {
+            try {
+                $p = if ($data.url) { $data.url } else { $data.url_tall }
+                if ($p) {
+                    $native = Join-Path (Get-Location) "build/RelWithDebInfo/tonearm-hls-cache-smoke.exe"
+                    if (Test-Path $native) {
+                        & $native $p
+                        Write-Host "Coverage native video cache $($q.artist): success=$($LASTEXITCODE -eq 0)"
+                    }
+                }
+            } catch {
+                Write-Warning "Coverage native cache unavailable for $($q.artist): $($_.Exception.Message)"
+            }
+        }
     } catch {
         Write-Warning "Coverage probe: $($q.artist) / $($q.album) failed: $($_.Exception.Message)"
     }
     Start-Sleep -Milliseconds 650
+}
+
+
+# Public iTunes catalog discovery and independent API's URL-search fallback.
+# Diagnostic only; Tonearm does not read or reuse Apple player credentials.
+try {
+    $query = "https://itunes.apple.com/search?term=$([uri]::EscapeDataString("Beyonce B'Day"))&entity=album&country=US&limit=35"
+    $itunes = Invoke-RestMethod -Uri $query -TimeoutSec 12
+    foreach ($candidate in @($itunes.results | Where-Object {$_.artistName -match 'Beyonc' -and $_.collectionName -match "B.Day"} | Select-Object -First 5)) {
+        $albumLink = "https://music.apple.com/album/$($candidate.collectionId)"
+        $endpoint = "https://artwork.m8tec.top/api/v1/artwork/url?url=$([uri]::EscapeDataString($albumLink))"
+        $resp = Invoke-WebRequest -Uri $endpoint -Method Get -SkipHttpErrorCheck -TimeoutSec 12
+        $entry = if ($resp.StatusCode -eq 200) {$resp.Content | ConvertFrom-Json} else {$null}
+        Write-Host "Catalog fallback: id=$($candidate.collectionId), album=$($candidate.collectionName), HTTP $($resp.StatusCode), hasMotion=$([bool]$entry.url)"
+        Start-Sleep -Milliseconds 650
+    }
+} catch {
+    Write-Warning "Catalog fallback diagnostic failed: $($_.Exception.Message)"
 }
