@@ -10,9 +10,9 @@ The feature is **off by default**. While it is off, Tonearm creates no media dec
 
 ## Automatic Apple Music artwork (experimental, Windows)
 
-When **Animated artwork when available** is selected and **Local artwork folder** is blank, Tonearm looks up the current artist/album/track in the independent public API at [artwork.m8tec.top](https://artwork.m8tec.top). Its response provides genuine Apple Music HLS artwork streams. OBS FFmpeg plays the HLS media directly—Tonearm doesn't synthesize movement or fetch/store MP4 videos.
+When **Animated artwork when available** is selected and **Local artwork folder** is blank, Tonearm looks up the current artist/album/track in the independent public API at [artwork.m8tec.top](https://artwork.m8tec.top). Its response provides genuine Apple Music HLS artwork streams. For Apple's finite single-MP4 HLS playlists, Tonearm downloads the complete short original MP4 into a private per-user cache and asks OBS FFmpeg to loop that local video. Other unencrypted finite HLS layouts may be cached as local playlists. Tonearm doesn't synthesize animation.
 
-The lookup sends **artist, album, and track title** to that third party. It does not transmit your Apple ID, Apple Music credentials, or listening history beyond the current lookup. Requests run off the graphics thread; a failed lookup, ambiguous album, unavailable service, or unsupported song falls back to the ordinary still artwork.
+The lookup sends **artist, album, and track title** to that third party. It does not transmit your Apple ID, Apple Music credentials, or listening history beyond the current lookup. Requests run off the graphics thread. For smooth playback, complete videos are cached in `%LOCALAPPDATA%\\Tonearm\\MotionCache` on Windows and reused; you can delete that folder while OBS is closed to reclaim space. Individual animations are limited to 100 MB, although the total cache may grow over time. A failed lookup, ambiguous album, incomplete download, unsupported encryption, or unavailable service falls back to the ordinary still artwork.
 
 This service is **unofficial**, can change, and may be rate-limited. It is not owned or operated by Apple or Tonearm. Only an exact normalized artist and album edition match is accepted, and video locations are limited to Apple CDN HTTPS hosts. Tonearm doesn't extract or store Apple web-player tokens.
 
