@@ -78,13 +78,15 @@ ffmpeg -framerate 30 -i frames/f%04d.png -filter_complex \
   "[0:v]format=rgb24,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=sierra2_4a" demo.gif
 ```
 
+The README's images are built by the scripts in `tools/media`, which add a timeline tool (`tonearm-sequence`, built by `tools/media/build-sequence.sh`) for longer scripted runs. [Media design](media/DESIGN.md) lists the scripts and the visual rules they follow.
+
 ## Continuous integration
 
 `.github/workflows/build.yml` runs on every push and pull request:
 
 - **Linux**: builds the core, plugin and tools against Ubuntu's libobs, and runs the unit tests.
 - **Windows**: builds libobs 30.2.3 (cached between runs), builds Tonearm with MSVC, runs the unit tests with the DirectWrite backend, and uploads the plugin zip and a separate debug-symbol zip.
-- **Release**: pushing a tag such as `v0.1.0` creates a draft GitHub release with both zips and the matching section of `CHANGELOG.md`. Review the draft and publish it by hand.
+- **Release**: pushing a tag such as `v0.2.0` builds both platforms, then publishes a GitHub release with the plugin zip and the symbols zip. The notes come from `docs/release-notes/<tag>.md` when that file exists, otherwise from the matching section of `CHANGELOG.md`. The Package step fails if the DLL or locale files are missing and prints every entry of the zip, so the layout can be checked in the job log.
 
 ## Versioning
 

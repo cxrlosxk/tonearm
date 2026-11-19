@@ -2,9 +2,9 @@
 
 All notable changes to Tonearm are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.2.0] - 2026-11-19
 
-Planned as 0.2.0. Not released.
+First public release. Tested by the author with real Apple Music playback and genuine motion artwork in OBS Studio on Windows 11.
 
 ### Added
 
@@ -27,7 +27,7 @@ Planned as 0.2.0. Not released.
 
 ## [0.1.0] - 2026-11-19
 
-First preview release. The Windows media connection has not yet been tested on real hardware; see [docs/testing.md](docs/testing.md).
+Internal preview, never published as a GitHub release. Everything below ships in 0.2.0.
 
 ### Added
 
@@ -44,5 +44,4 @@ First preview release. The Windows media connection has not yet been tested on r
 - Bundled Inter, IBM Plex and EB Garamond fonts (SIL OFL 1.1).
 - `tonearm-render`, a headless renderer for documentation images, and a scripted test player (`TONEARM_SCRIPTED_MEDIA=1`).
 
-[Unreleased]: https://github.com/cxrlosxk/tonearm/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/cxrlosxk/tonearm/releases/tag/v0.1.0
+[0.2.0]: https://github.com/cxrlosxk/tonearm/releases/tag/v0.2.0

@@ -4,9 +4,17 @@ Tonearm can play a looping video in place of the still album cover. The video si
 
 The feature is **off by default**. While it is off, Tonearm creates no media decoder, starts no extra thread and reads no extra files.
 
-![Animated artwork in all four presets and layouts (test videos)](media/animated-gallery.webp)
+<p align="center">
+  <a href="media/artwork/artwork.mp4"><img src="media/artwork/artwork.webp" width="880" alt="Five Tonearm overlays recorded in OBS on Windows, each playing an album's genuine Apple Music motion artwork."></a>
+</p>
 
-*The covers in this image are FFmpeg test patterns, not album artwork. They were captured from OBS Studio 30.0.2 on Linux while the scripted test player was running.*
+*Recorded from Tonearm 0.2.0 in OBS Studio on Windows 11 with Apple Music. Each clip below shows one album in the Editorial vertical and Glass square layouts. The artwork belongs to its artists and labels; see [NOTICE](../NOTICE.md#media-in-this-repository).*
+
+| | |
+|---|---|
+| <img src="media/artwork/sos.webp" width="420" alt="SZA, SOS: waves move around a figure sitting on a diving board, in Editorial vertical and Glass square cards"><br>SZA, *SOS* · [MP4](media/artwork/sos.mp4) | <img src="media/artwork/wonder.webp" width="420" alt="Shawn Mendes, Wonder: handwritten words drift over a stormy sea, in Editorial vertical and Glass square cards"><br>Shawn Mendes, *Wonder* · [MP4](media/artwork/wonder.mp4) |
+| <img src="media/artwork/merry-christmas.webp" width="420" alt="Mariah Carey, Merry Christmas: snow falls around Mariah Carey in a red coat, in Editorial vertical and Glass square cards"><br>Mariah Carey, *Merry Christmas* · [MP4](media/artwork/merry-christmas.mp4) | <img src="media/artwork/positions.webp" width="420" alt="Ariana Grande, Positions: tiled portraits shift and move, in Editorial vertical and Glass square cards"><br>Ariana Grande, *Positions* · [MP4](media/artwork/positions.mp4) |
+| <img src="media/artwork/143.webp" width="420" alt="Katy Perry, 143: a pink and blue vortex swirls around a floating figure, in Editorial vertical and Glass square cards"><br>Katy Perry, *143* · [MP4](media/artwork/143.mp4) | |
 
 ## Automatic Apple Music artwork (experimental, Windows)
 

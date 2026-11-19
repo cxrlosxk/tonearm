@@ -2,7 +2,18 @@
 
 This page says plainly what has been checked, how, and what still needs a Windows machine. It is updated with each release.
 
-## Status for 0.1.0
+## Status for 0.2.0
+
+| Area | Status | How |
+|---|---|---|
+| Plugin loads and renders in OBS Studio on Windows 11 | Verified | Tested by the author on his own PC before approving the release candidate |
+| SMTC media connection with Apple Music | Verified | Real playback: title, artist and album split correctly, artwork, progress, track changes |
+| Online Apple Music motion artwork | Verified | Real playback across many albums, including SOS, Wonder, Merry Christmas, Positions and 143, which were also recorded for the README showcase in four Tonearm sources at once |
+| Motion cache and replay | Verified | Windows CI downloads real motion videos and checks that replaying an album reuses the local cache |
+| Spotify, TIDAL, Deezer and other SMTC players | Expected to work, not individually checked | They publish to the same Windows media controls; Apple Music is the player that was exercised |
+| Hardware decoding cost on other GPUs | Depends on the PC | Check OBS's *Stats* window on your own setup; see [Animated artwork](animated-artwork.md#performance) |
+
+### Earlier checks (0.1.0 development, mostly Linux)
 
 | Area | Status | How |
 |---|---|---|
@@ -12,17 +23,16 @@ This page says plainly what has been checked, how, and what still needs a Window
 | Settings window, live preview, every group | Verified on Linux | Opened in OBS 30.0.2 and inspected |
 | Transitions, seek, pause/resume, long titles, missing artwork, player hand-off, idle | Verified on Linux with a scripted player | `TONEARM_SCRIPTED_MEDIA=1`, see below |
 | Preset or layout changes through obs-websocket | Verified on Linux | All 16 combinations switched live during the gallery capture |
-| DirectWrite text backend | Verified in unit tests on Windows | The 48 unit tests pass on the Windows CI runner (MSVC 19.44), where text shaping and rasterization go through DirectWrite with the bundled fonts. Not yet seen inside OBS on Windows |
-| WIC artwork decoding | Compiles with MSVC; not yet run | Runs only when a player supplies artwork, so it needs a real Windows session |
-| SMTC media connection (Apple Music, Spotify, others) | Compiles with MSVC; not yet run | Needs a real Windows session with players |
-| Windows package layout | Produced by CI | The Windows job installs `obs-plugins\64bit\tonearm.dll` and `data\obs-plugins\tonearm\` and zips them, with debug symbols in a separate zip. Not yet installed into OBS on Windows |
+| DirectWrite text backend | Verified in unit tests on Windows | The 48 unit tests pass on the Windows CI runner (MSVC 19.44), where text shaping and rasterization go through DirectWrite with the bundled fonts. Since seen inside OBS on Windows |
+| WIC artwork decoding | Verified on Windows | Apple Music artwork decoded in OBS on Windows 11 |
+| SMTC media connection (Apple Music, Spotify, others) | Verified on Windows with Apple Music | Other players use the same interface |
+| Windows package layout | Produced by CI | The Windows job installs `obs-plugins\64bit\tonearm.dll` and `data\obs-plugins\tonearm\` and zips them, with debug symbols in a separate zip. |
 | High-DPI | By design | OBS sources render in canvas pixels, not screen pixels. Tonearm scales everything from the source's width and height, so a larger source is rendered sharper rather than stretched. |
 
-Until the Windows rows are checked, treat the Windows build as a preview.
 
 ## Animated artwork
 
-Status of the experimental animated artwork on this branch (planned for 0.2.0).
+Detailed checks behind the animated artwork in 0.2.0.
 
 | Area | Status | How |
 |---|---|---|
@@ -35,9 +45,9 @@ Status of the experimental animated artwork on this branch (planned for 0.2.0).
 | Seamless loop | Verified on Linux | 1,655 screenshots at about 28 per second over 60 s (around 10 loops of 4 s videos): no dark or dropped frames while a track played |
 | Hide and show, scene switches, 30 rapid create/delete cycles, switching the feature off, clean shutdown | Verified on Linux | No growth in threads; open video files close when the feature is switched off; `Number of memory leaks: 0` |
 | CPU cost | Measured on Linux, software rendering only | See [Animated artwork](animated-artwork.md#performance) |
-| Windows: build, unit tests, package | Run by CI | Not yet run in OBS on Windows |
-| Windows: hardware decoding, GPU load, encoder impact while gaming | Not yet measured | Needs a real PC |
-| Apple Music motion artwork retrieval | Not built | See [why](animated-artwork.md#why-tonearm-doesnt-fetch-apple-musics-videos) |
+| Windows: build, unit tests, package | Run by CI | Also tested in OBS on Windows by the author |
+| Windows: hardware decoding, GPU load, encoder impact while gaming | Varies by PC | Smart quality and adaptive workload keep it modest; measure on your own setup |
+| Apple Music motion artwork retrieval | Verified on Windows | Through the optional third-party lookup described in [Animated artwork](animated-artwork.md) |
 
 ### Windows check for animated artwork
 

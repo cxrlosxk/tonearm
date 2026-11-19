@@ -122,8 +122,18 @@ jobs:
           # Debug symbols ship as a separate download.
           New-Item -ItemType Directory -Force symbols | Out-Null
           Move-Item stage/obs-plugins/64bit/*.pdb symbols/ -ErrorAction SilentlyContinue
-          Copy-Item README.md, LICENSE, NOTICE.md, CHANGELOG.md stage/
+          # Licence and notes travel inside the plugin's own data folder, so
+          # extracting the zip over an OBS install adds nothing to the OBS root.
+          Copy-Item README.md, LICENSE, NOTICE.md, CHANGELOG.md stage/data/obs-plugins/tonearm/
+          foreach ($required in 'obs-plugins/64bit/tonearm.dll', 'data/obs-plugins/tonearm/locale/en-US.ini') {
+            if (-not (Test-Path "stage/$required")) { throw "Package is missing $required" }
+          }
           Compress-Archive -Path stage/* -DestinationPath "tonearm-$label-windows-x64.zip"
+          # Print the archive layout so every package can be checked from the log.
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [System.IO.Compression.ZipFile]::OpenRead("$PWD/tonearm-$label-windows-x64.zip")
+          $zip.Entries | ForEach-Object { "{0,10}  {1}" -f $_.Length, $_.FullName }
+          $zip.Dispose()
           Compress-Archive -Path symbols/* -DestinationPath "tonearm-$label-windows-x64-pdb.zip"
           "LABEL=$label" | Out-File -FilePath $env:GITHUB_ENV -Append
 
@@ -153,6 +163,10 @@ jobs:
       - name: Extract release notes
         run: |
           version="${GITHUB_REF_NAME#v}"
+          if [ -s "docs/release-notes/$GITHUB_REF_NAME.md" ]; then
+            cp "docs/release-notes/$GITHUB_REF_NAME.md" notes.md
+            exit 0
+          fi
           awk -v v="$version" '
             $0 ~ "^## \\[?"v"\\]?" {on=1; next}
             on && /^## / {exit}
@@ -160,9 +174,9 @@ jobs:
           ' CHANGELOG.md > notes.md
           test -s notes.md || echo "See CHANGELOG.md." > notes.md
 
-      - name: Create draft release
+      - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" dist/*.zip \
-            --draft --title "Tonearm ${GITHUB_REF_NAME#v}" --notes-file notes.md
+            --latest --title "Tonearm ${GITHUB_REF_NAME#v}" --notes-file notes.md
