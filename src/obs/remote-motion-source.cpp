@@ -68,17 +68,13 @@ bool trustedVideoUrl(const std::string &url)
 	return allowed("apple.com") || allowed("mzstatic.com");
 }
 
-std::string getArtworkJson(const std::string &artist, const std::string &album, const std::string &title,
-			   const std::atomic<bool> &cancelled, DWORD *responseStatus)
+std::string getJson(const wchar_t *hostname, const std::string &path,
+		    const std::atomic<bool> &cancelled, DWORD *responseStatus)
 {
 	if (responseStatus)
 		*responseStatus = 0;
 	if (cancelled)
 		return {};
-	std::string path = "/api/v1/artwork/search?artist=" + percentEncode(artist) +
-			   "&album=" + percentEncode(album);
-	if (!title.empty())
-		path += "&title=" + percentEncode(title);
 	const std::wstring widePath(path.begin(), path.end());
 
 	HttpHandle session(WinHttpOpen(L"Tonearm/0.2 (OBS Studio)", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
@@ -87,7 +83,7 @@ std::string getArtworkJson(const std::string &artist, const std::string &album, 
 		return {};
 	// A failed service must never leave the plugin stuck or block the graphics thread.
 	WinHttpSetTimeouts(session, 2500, 2500, 4500, 4500);
-	HttpHandle connection(WinHttpConnect(session, L"artwork.m8tec.top", INTERNET_DEFAULT_HTTPS_PORT, 0));
+	HttpHandle connection(WinHttpConnect(session, hostname, INTERNET_DEFAULT_HTTPS_PORT, 0));
 	if (!connection || cancelled)
 		return {};
 	HttpHandle request(WinHttpOpenRequest(connection, L"GET", widePath.c_str(), nullptr, WINHTTP_NO_REFERER,
@@ -128,6 +124,14 @@ std::string getArtworkJson(const std::string &artist, const std::string &album, 
 		body.append(chunk.data(), read);
 	}
 	return body;
+}
+
+std::string getArtworkJson(const std::string &artist, const std::string &album,
+			   const std::atomic<bool> &cancelled, DWORD *responseStatus)
+{
+	const std::string path = "/api/v1/artwork/search?artist=" + percentEncode(artist) +
+				 "&album=" + percentEncode(album);
+	return getJson(L"artwork.m8tec.top", path, cancelled, responseStatus);
 }
 } // namespace
 
@@ -171,7 +175,7 @@ std::optional<MotionAsset> RemoteArtworkApiSource::resolve(const MotionQuery &q,
 			return std::nullopt;
 		DWORD status = 0;
 		++checked;
-		const std::string body = getArtworkJson(search.artist, search.album, "", cancelled, &status);
+		const std::string body = getArtworkJson(search.artist, search.album, cancelled, &status);
 		if (cancelled)
 			return std::nullopt;
 		if (status == 429 || status == 503 || status == 0) {
