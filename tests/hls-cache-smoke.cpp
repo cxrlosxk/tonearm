@@ -19,6 +19,19 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	const std::filesystem::path manifest = std::filesystem::u8path(*local);
+	if (manifest.extension() == ".mp4") {
+		std::ifstream file(manifest, std::ios::binary);
+		char header[8]{};
+		file.read(header, 8);
+		if (file.gcount() != 8 || std::string(header + 4, 4) != "ftyp" ||
+		    std::filesystem::file_size(manifest) < 4096) {
+			std::cerr << "Cached MP4 is invalid\n";
+			return 1;
+		}
+		std::cout << "Cached full local Apple MP4: bytes="
+			  << std::filesystem::file_size(manifest) << "\n";
+		return 0;
+	}
 	std::ifstream stream(manifest);
 	if (!stream) {
 		std::cerr << "Missing local manifest\n";
