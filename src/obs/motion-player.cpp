@@ -136,10 +136,14 @@ void MotionPlayer::deliver(uint64_t serial, const std::optional<MotionAsset> &as
 		// then open the new file. Opening may block briefly; this is not the graphics thread.
 		obs_source_output_video(child, nullptr);
 		obs_data_t *settings = obs_data_create();
-		const bool remote = asset->location.rfind("https://", 0) == 0;
-		obs_data_set_bool(settings, "is_local_file", !remote);
-		obs_data_set_string(settings, "local_file", remote ? "" : asset->location.c_str());
-		obs_data_set_string(settings, "input", remote ? asset->location.c_str() : "");
+		// OBS's non-local "input" mode treats HLS as a live broadcast and
+		// explicitly DISABLES looping, even for a finite video-on-demand playlist.
+		// Genuine Apple motion artwork is a short VOD loop. FFmpeg accepts an
+		// HTTPS HLS URL as its "local_file" path; this selects OBS's seekable,
+		// looping media-file playback semantics while still fetching over HTTPS.
+		obs_data_set_bool(settings, "is_local_file", true);
+		obs_data_set_string(settings, "local_file", asset->location.c_str());
+		obs_data_set_string(settings, "input", "");
 		obs_source_update(child, settings);
 		obs_data_release(settings);
 		std::lock_guard<std::mutex> lock(mutex_);
