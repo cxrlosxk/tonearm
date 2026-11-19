@@ -176,7 +176,7 @@ void MotionPlayer::deliver(uint64_t serial, const std::optional<MotionAsset> &as
 	obs_source_release(child);
 }
 
-void MotionPlayer::tick(const MediaSession *session, bool showing, MotionShape preferred)
+void MotionPlayer::tick(const MediaSession *session, bool showing, MotionShape preferred, float artworkSize)
 {
 	if (!enabled_)
 		return;
@@ -187,7 +187,12 @@ void MotionPlayer::tick(const MediaSession *session, bool showing, MotionShape p
 	// New track (or new preferred shape): ask the resolver. It cancels older work.
 	if (session && session->track.hasMetadata()) {
 		const std::string identity = session->track.identity();
-		const std::string key = identity + (preferred == MotionShape::Portrait ? "\x1fp" : "\x1fs");
+		MotionQuality requestedQuality = quality_.load();
+		if (requestedQuality == MotionQuality::Smart)
+			requestedQuality = artworkSize >= 540.0f ? MotionQuality::Maximum : MotionQuality::Balanced;
+		effectiveQuality_.store(requestedQuality);
+		const std::string key = identity + (preferred == MotionShape::Portrait ? "\x1fp" : "\x1fs") +
+				(requestedQuality == MotionQuality::Maximum ? "m" : "b");
 		bool retryMiss = false;
 		if (key == requestedKey_) {
 			std::lock_guard<std::mutex> lock(mutex_);
@@ -202,7 +207,7 @@ void MotionPlayer::tick(const MediaSession *session, bool showing, MotionShape p
 			q.album = session->track.album;
 			q.title = session->track.title;
 			q.preferred = preferred;
-			q.quality = quality_.load();
+			q.quality = requestedQuality;
 			std::lock_guard<std::mutex> lock(mutex_);
 			wantedSerial_ = ++serial_;
 			wantedIdentity_ = identity;
@@ -338,7 +343,7 @@ gs_texture_t *MotionPlayer::prepare(const std::vector<DrawOp> &ops, const Rect &
 	// excellent detail by supersampling at 3x the displayed artwork size,
 	// while bounding the GPU pass to 1440p (Maximum) or 1080p (Balanced).
 	// This leaves the original high-bitrate decoded Apple video untouched.
-	const bool maximum = quality_.load() == MotionQuality::Maximum;
+	const bool maximum = effectiveQuality_.load() == MotionQuality::Maximum;
 	const float requested = std::max(box.w, box.h) * (maximum ? 3.0f : 2.5f);
 	const float captureLimit = std::clamp(requested, maximum ? 768.0f : 576.0f,
 					     maximum ? 1440.0f : 1080.0f);
