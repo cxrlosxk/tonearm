@@ -377,10 +377,16 @@ gs_texture_t *MotionPlayer::prepare(const std::vector<DrawOp> &ops, const Rect &
 			vec4_zero(&clear);
 			gs_clear(GS_CLEAR_COLOR, &clear, 0.0f, 0);
 			gs_ortho(crop.x, crop.x + crop.w, crop.y, crop.y + crop.h, -100.0f, 100.0f);
+			// Explicitly keep the intermediate in the same non-sRGB-write
+			// mode as Tonearm's final compositor. Otherwise OBS's inherited
+			// framebuffer state can encode an already-encoded 8-bit source.
+			const bool previousSrgb = gs_framebuffer_srgb_enabled();
+			gs_enable_framebuffer_srgb(false);
 			gs_blend_state_push();
 			gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO);
 			obs_source_video_render(child);
 			gs_blend_state_pop();
+			gs_enable_framebuffer_srgb(previousSrgb);
 			gs_texrender_end(texrender_);
 			texW_ = tw;
 			texH_ = th;
