@@ -86,7 +86,7 @@ if(TONEARM_BUILD_PLUGIN)
   target_compile_definitions(tonearm PRIVATE TONEARM_VERSION="${PROJECT_VERSION}")
 
   if(WIN32)
-    target_sources(tonearm PRIVATE src/obs/remote-motion-source.cpp)
+    target_sources(tonearm PRIVATE src/obs/remote-motion-source.cpp src/obs/hls-cache.cpp)
     target_link_libraries(tonearm PRIVATE winhttp)
     configure_file(cmake/tonearm.rc.in ${CMAKE_CURRENT_BINARY_DIR}/tonearm.rc @ONLY)
     target_sources(tonearm PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/tonearm.rc)
