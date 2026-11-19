@@ -58,6 +58,25 @@ TEST("catalog: album artist may identify a compilation")
 	CHECK(id && *id == 333);
 }
 
+TEST("catalog: soundtrack credit contains the exact playing performer")
+{
+	const auto q = current("Cynthia Erivo", "Wicked: For Good - The Soundtrack");
+	CHECK(catalogArtistMatches(q, "Wicked Movie Cast, Cynthia Erivo & Ariana Grande"));
+	CHECK(catalogArtistMatches(q, "Wicked Movie Cast, Cynthia Erivo and Ariana Grande"));
+	CHECK(!catalogArtistMatches(q, "Wicked Movie Cast, Ariana Grande"));
+	CHECK(!catalogArtistMatches(current("Erivo", q.album.c_str()), "Wicked Movie Cast, Cynthia Erivo & Ariana Grande"));
+	const auto id = exactCatalogAlbumId(q,
+		{{321, "Wicked Movie Cast, Cynthia Erivo & Ariana Grande", "Wicked: For Good – The Soundtrack"}});
+	CHECK(id && *id == 321);
+}
+
+TEST("catalog: soundtrack match still requires exact album identity")
+{
+	const auto id = exactCatalogAlbumId(current("Cynthia Erivo", "Wicked: For Good - The Soundtrack"),
+		{{321, "Wicked Movie Cast, Cynthia Erivo & Ariana Grande", "Wicked - The Soundtrack"}});
+	CHECK(!id);
+}
+
 TEST("catalog: missing identifiers and incomplete metadata are not accepted")
 {
 	CHECK(!exactCatalogAlbumId(current("", "19"), {{101, "Adele", "19"}}));
