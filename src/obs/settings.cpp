@@ -268,7 +268,7 @@ void settingsDefaults(obs_data_t *d)
 	obs_data_set_default_bool(d, "sample_when_idle", false);
 	obs_data_set_default_string(d, "artwork_mode", "static");
 	obs_data_set_default_string(d, "motion_orientation", "auto");
-	obs_data_set_default_string(d, "motion_quality", "maximum");
+	obs_data_set_default_string(d, "motion_quality", "smart");
 	obs_data_set_default_string(d, "motion_pause", "with_music");
 	obs_data_set_default_string(d, "motion_folder", "");
 	obs_data_set_default_string(d, "source_mode", "auto");
@@ -339,7 +339,8 @@ Style styleFromSettings(obs_data_t *d)
 	s.motionOrientation = !strcmp(mo, "square") ? MotionOrientation::Square
 			      : !strcmp(mo, "portrait") ? MotionOrientation::Portrait
 							 : MotionOrientation::Automatic;
-	s.motionQuality = !strcmp(obs_data_get_string(d, "motion_quality"), "balanced") ? MotionQuality::Balanced : MotionQuality::Maximum;
+	s.motionQuality = !strcmp(obs_data_get_string(d, "motion_quality"), "smart") ? MotionQuality::Smart :
+		!strcmp(obs_data_get_string(d, "motion_quality"), "balanced") ? MotionQuality::Balanced : MotionQuality::Maximum;
 	s.motionPause = !strcmp(obs_data_get_string(d, "motion_pause"), "loop") ? MotionPause::KeepLooping : MotionPause::WithMusic;
 	s.motionFolder = obs_data_get_string(d, "motion_folder");
 	return s;
@@ -537,7 +538,7 @@ obs_properties_t *buildProperties(PropertiesContext *ctx)
 	addList(anim, "motion_orientation", T_("MotionOrientation"),
 		{{"auto", "MotionOrientation.Auto"}, {"square", "MotionOrientation.Square"}, {"portrait", "MotionOrientation.Portrait"}});
 	addList(anim, "motion_quality", T_("MotionQuality"),
-		{{"maximum", "MotionQuality.Maximum"}, {"balanced", "MotionQuality.Balanced"}});
+		{{"smart", "MotionQuality.Smart"}, {"maximum", "MotionQuality.Maximum"}, {"balanced", "MotionQuality.Balanced"}});
 	addList(anim, "motion_pause", T_("MotionPause"), {{"with_music", "MotionPause.WithMusic"}, {"loop", "MotionPause.Loop"}});
 	obs_properties_add_path(anim, "motion_folder", T_("MotionFolder"), OBS_PATH_DIRECTORY, nullptr, nullptr);
 	obs_properties_add_text(anim, "motion_note", T_("MotionNote"), OBS_TEXT_INFO);
