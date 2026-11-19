@@ -367,7 +367,7 @@ std::optional<std::string> cacheMotionHls(const std::string &playlistUrl, const 
 	fs::rename(building, finished, ec);
 	if (ec)
 		return fail();
-	return dest.u8string();
+	return utf8Path(dest);
 }
 
 } // namespace tonearm
