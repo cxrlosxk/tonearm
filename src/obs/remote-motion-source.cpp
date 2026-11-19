@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "remote-motion-source.hpp"
+#include "media/catalog_match.hpp"
 
 #ifdef _WIN32
 
 #include <obs-data.h>
 
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
 #include <windows.h>
 #include <winhttp.h>
 
@@ -146,12 +145,7 @@ std::optional<MotionAsset> RemoteArtworkApiSource::resolve(const MotionQuery &q,
 	// This service uses fuzzy searching. Enforce exact release identity locally.
 	if (!(albumKey(responseAlbum) == albumKey(q.album)))
 		return std::nullopt;
-	auto acceptable = artistKeys(q.artist);
-	for (const auto &a : artistKeys(q.albumArtist))
-		if (std::find(acceptable.begin(), acceptable.end(), a) == acceptable.end())
-			acceptable.push_back(a);
-	const std::string returned = normalizeName(responseArtist);
-	if (std::find(acceptable.begin(), acceptable.end(), returned) == acceptable.end())
+	if (!catalogArtistMatches(q, responseArtist))
 		return std::nullopt;
 
 	const bool portrait = q.preferred == MotionShape::Portrait;
