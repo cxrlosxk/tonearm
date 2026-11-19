@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "remote-motion-source.hpp"
 #include "hls-cache.hpp"
+#include "motion-index.hpp"
 #include <obs-module.h>
 #include "media/catalog_match.hpp"
 
@@ -222,7 +223,9 @@ std::optional<MotionAsset> resolveWithCatalogId(const MotionQuery &q, const std:
 		auto cached = cacheMotionHls(chosen, cancelled, q.quality);
 		if (cached) {
 			blog(LOG_INFO, "[tonearm] animated artwork found via public album ID fallback");
-			return MotionAsset{*cached, chosen == tall ? MotionShape::Portrait : MotionShape::Square};
+			MotionAsset asset{*cached, chosen == tall ? MotionShape::Portrait : MotionShape::Square};
+			rememberMotionForAlbum(q, asset);
+			return asset;
 		}
 		break; // Avoid downloading the same failed source multiple times.
 	}
@@ -234,6 +237,13 @@ std::optional<MotionAsset> RemoteArtworkApiSource::resolve(const MotionQuery &q,
 {
 	if (q.artist.empty() || q.album.empty() || cancelled)
 		return std::nullopt;
+	// A confirmed local album match should display immediately on replay.
+	// Avoid the external metadata service entirely when we already own a
+	// complete, validated motion video for this precise release and shape.
+	if (auto indexed = cachedMotionForAlbum(q)) {
+		blog(LOG_INFO, "[tonearm] instant animated album cache hit");
+		return indexed;
+	}
 
 	struct Lookup {
 		std::string artist, album;
@@ -303,7 +313,9 @@ std::optional<MotionAsset> RemoteArtworkApiSource::resolve(const MotionQuery &q,
 		if (cached) {
 			blog(LOG_INFO, "[tonearm] animated artwork ready (query %zu/%zu, %s rendition)",
 			     checked, attempts.size(), q.quality == MotionQuality::Maximum ? "maximum" : "balanced");
-			return MotionAsset{*cached, chosen == tall ? MotionShape::Portrait : MotionShape::Square};
+			MotionAsset asset{*cached, chosen == tall ? MotionShape::Portrait : MotionShape::Square};
+			rememberMotionForAlbum(q, asset);
+			return asset;
 		}
 		if (!cancelled)
 			blog(LOG_WARNING, "[tonearm] motion URL found but video cache/decoder preparation failed");
