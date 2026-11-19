@@ -8,6 +8,7 @@ $queries = @(
     @{ artist = 'Wicked Movie Cast'; album = 'Wicked: For Good - The Soundtrack'; title = 'No Good Deed' }
 )
 $found = $false
+$cachePassed = $false
 foreach ($q in $queries) {
     $artist = [uri]::EscapeDataString($q.artist)
     $album = [uri]::EscapeDataString($q.album)
@@ -33,6 +34,14 @@ foreach ($q in $queries) {
                 throw 'URL returned non-HLS content'
             }
             $found = $true
+            if ($q.artist -eq 'Gorillaz') {
+                $cacheProbe = Join-Path (Get-Location) "build/RelWithDebInfo/tonearm-hls-cache-smoke.exe"
+                if (-not (Test-Path $cacheProbe)) { throw "Native HLS cache probe executable was not built" }
+                & $cacheProbe $hls
+                if ($LASTEXITCODE -ne 0) { throw "Native offline HLS cache validation failed" }
+                $cachePassed = $true
+                Write-Host "Native cached HLS validation succeeded"
+            }
             Write-Host "Online motion HLS: requested=$($q.artist) / $($q.album), response=$($response.artist) / $($response.album), CDN=$(([uri]$hls).Host)"
             # Check that the playlist also contains moving frames. No artwork is saved in the repo.
             $ffmpeg = Get-Command ffmpeg -ErrorAction SilentlyContinue
@@ -57,3 +66,4 @@ foreach ($q in $queries) {
     Start-Sleep -Milliseconds 750
 }
 if (-not $found) { throw 'No tested album returned a readable online HLS playlist.' }
+if (-not $cachePassed) { throw 'Native Windows HLS cache probe did not succeed.' }
