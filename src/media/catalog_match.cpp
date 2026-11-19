@@ -55,6 +55,24 @@ bool compatibleMotionAlbumTitle(const std::string &requested, const std::string 
 	       (!gotBaseQuery.empty() && albumKey(gotBaseQuery).base == want.base && want.edition.empty());
 }
 
+bool verifiedSoundtrackTrack(const MotionQuery &nowPlaying, const CatalogAlbum &officialAlbum,
+                             const std::string &motionArtist, const std::string &motionAlbum,
+                             const std::string &trackArtist, const std::string &trackTitle)
+{
+	const std::string album = normalizeName(nowPlaying.album);
+	if (album.find("soundtrack") == std::string::npos || nowPlaying.title.empty() ||
+	    nowPlaying.artist.empty() || officialAlbum.id == 0)
+		return false;
+	// Require the exact same soundtrack edition, not merely a shared base title.
+	if (album != normalizeName(officialAlbum.title) || album != normalizeName(motionAlbum))
+		return false;
+	if (normalizeName(motionArtist) != normalizeName(officialAlbum.artist) ||
+	    normalizeName(trackArtist) != normalizeName(nowPlaying.artist) ||
+	    normalizeName(trackTitle) != normalizeName(nowPlaying.title))
+		return false;
+	return true;
+}
+
 bool catalogArtistMatches(const MotionQuery &nowPlaying, const std::string &catalogArtist)
 {
 	std::vector<std::string> acceptableArtists = artistKeys(nowPlaying.artist);
