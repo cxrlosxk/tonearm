@@ -102,3 +102,32 @@ foreach ($q in $queries) {
 }
 if (-not $found) { throw 'No tested album returned a readable online HLS playlist.' }
 if (-not $cachePassed) { throw 'Native Windows HLS cache probe did not succeed.' }
+
+
+# Non-blocking coverage diagnostics based on real Tonearm/Apple Music examples.
+# This does not download videos; it records whether the public third-party API
+# recognizes alternate release spelling and edition qualifiers.
+$coverage = @(
+    @{artist='Alicia Keys';album='The Diary of Alicia Keys'},
+    @{artist='Bruno Mars';album='Doo-Wops & Hooligans (Deluxe)'},
+    @{artist='Bruno Mars';album='Doo-Wops & Hooligans'},
+    @{artist='Ariana Grande';album='eternal sunshine deluxe: brighter days ahead'},
+    @{artist='Ariana Grande';album='eternal sunshine'},
+    @{artist='Beyonce';album="B'Day (20th Anniversary Deluxe Edition)"},
+    @{artist='Beyonce';album="B'Day"}
+)
+foreach ($q in $coverage) {
+    $u = "https://artwork.m8tec.top/api/v1/artwork/search?artist=$([uri]::EscapeDataString($q.artist))&album=$([uri]::EscapeDataString($q.album))"
+    try {
+        $response = Invoke-WebRequest -Uri $u -Method Get -SkipHttpErrorCheck -TimeoutSec 12
+        $identity = ''
+        if ($response.StatusCode -eq 200) {
+            $data = $response.Content | ConvertFrom-Json
+            $identity = "$($data.artist) / $($data.album); square=$([bool]$data.url); tall=$([bool]$data.url_tall)"
+        }
+        Write-Host "Coverage probe: $($q.artist) / $($q.album) => HTTP $($response.StatusCode) $identity"
+    } catch {
+        Write-Warning "Coverage probe: $($q.artist) / $($q.album) failed: $($_.Exception.Message)"
+    }
+    Start-Sleep -Milliseconds 650
+}
