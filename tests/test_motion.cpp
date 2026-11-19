@@ -326,6 +326,29 @@ TEST("resolver: the same release requested twice runs one lookup")
 	CHECK(d.last().first == 2);
 }
 
+TEST("resolver: tracks with the same album artist share a motion lookup")
+{
+	auto *src = new FakeSource;
+	src->available = {"Soundtrack"};
+	src->block = true;
+	Delivered d;
+	MotionResolver r(std::unique_ptr<MotionSource>(src),
+		[&](uint64_t serial, const std::optional<MotionAsset> &a) { d.add(serial, a); });
+	MotionQuery first = query("Soundtrack");
+	first.artist = "Performer One";
+	first.albumArtist = "Compilation Cast";
+	r.request(1, first);
+	CHECK(eventually([&] { return src->calls == 1; }));
+	MotionQuery second = first;
+	second.artist = "Performer Two";
+	second.title = "Next Track";
+	r.request(2, second);
+	src->release();
+	CHECK(eventually([&] { return d.size() >= 1; }));
+	CHECK(src->calls == 1);
+	CHECK(d.last().first == 2);
+}
+
 TEST("resolver: a failing source falls back to no artwork and keeps working")
 {
 	auto *src = new FakeSource;
