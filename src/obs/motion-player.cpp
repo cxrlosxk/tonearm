@@ -187,9 +187,7 @@ void MotionPlayer::tick(const MediaSession *session, bool showing, MotionShape p
 	// New track (or new preferred shape): ask the resolver. It cancels older work.
 	if (session && session->track.hasMetadata()) {
 		const std::string identity = session->track.identity();
-		MotionQuality requestedQuality = quality_.load();
-		if (requestedQuality == MotionQuality::Smart)
-			requestedQuality = artworkSize >= 540.0f ? MotionQuality::Maximum : MotionQuality::Balanced;
+		const MotionQuality requestedQuality = effectiveMotionQuality(quality_.load(), artworkSize);
 		effectiveQuality_.store(requestedQuality);
 		const std::string key = identity + (preferred == MotionShape::Portrait ? "\x1fp" : "\x1fs") +
 				(requestedQuality == MotionQuality::Maximum ? "m" : "b");
