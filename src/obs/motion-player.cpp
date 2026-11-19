@@ -328,9 +328,10 @@ gs_texture_t *MotionPlayer::prepare(const std::vector<DrawOp> &ops, const Rect &
 	// Tonearm's sRGB layers. Inspect actual decoder output rather than assuming
 	// HEVC = linear and H.264 = encoded; codecs can have different bit depths.
 	const auto videoColorSpace = obs_source_get_color_space(child, 0, nullptr);
+	const bool previousTransfer = videoNeedsSrgbEncode_;
 	videoNeedsSrgbEncode_ = videoColorSpace == GS_CS_SRGB_16F;
 	const uint64_t colorGeneration = loadGeneration_.load();
-	if (colorGeneration != loggedTransferGeneration_) {
+	if (colorGeneration != loggedTransferGeneration_ || previousTransfer != videoNeedsSrgbEncode_) {
 		blog(LOG_INFO, "[tonearm] motion video colorspace=%d; sRGB-encode=%s",
 		     static_cast<int>(videoColorSpace), videoNeedsSrgbEncode_ ? "yes" : "no");
 		loggedTransferGeneration_ = colorGeneration;
