@@ -48,7 +48,7 @@ endif()
 # ---------------------------------------------------------------------------
 # Media providers
 # ---------------------------------------------------------------------------
-add_library(tonearm_media STATIC src/media/provider.cpp src/media/motion_resolver.cpp src/media/demo_provider.cpp src/media/scripted_provider.cpp)
+add_library(tonearm_media STATIC src/media/provider.cpp src/media/motion_resolver.cpp src/media/catalog_match.cpp src/media/demo_provider.cpp src/media/scripted_provider.cpp)
 target_link_libraries(tonearm_media PUBLIC tonearm_core)
 if(WIN32)
   target_sources(tonearm_media PRIVATE src/media/smtc_provider.cpp src/media/wic_decode.cpp)
@@ -111,7 +111,7 @@ if(TONEARM_BUILD_TESTS)
   enable_testing()
   add_executable(tonearm-tests tests/main.cpp tests/test_color.cpp tests/test_image.cpp tests/test_media.cpp
                                tests/test_layout.cpp tests/test_scene.cpp tests/test_raster.cpp
-                               tests/test_text.cpp tests/test_motion.cpp)
+                               tests/test_text.cpp tests/test_motion.cpp tests/test_catalog_match.cpp)
   target_link_libraries(tonearm-tests PRIVATE tonearm_media)
   target_compile_definitions(tonearm-tests PRIVATE TONEARM_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
   add_test(NAME tonearm-tests COMMAND tonearm-tests)
