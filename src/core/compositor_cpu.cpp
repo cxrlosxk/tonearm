@@ -110,8 +110,8 @@ static void drawVideoOp(Image &target, const DrawOp &op, const Image &frame)
 			const float k = std::clamp(op.color.a, 0.0f, 1.0f);
 			const float tint[3] = {op.color.b * 255.0f * s[3] / 255.0f, op.color.g * 255.0f * s[3] / 255.0f, op.color.r * 255.0f * s[3] / 255.0f};
 			for (int c = 0; c < 4; ++c) {
-				const float v = c < 3 ? s[c] * (1.0f - k) + tint[c] * k : s[c];
-				d[c] = static_cast<uint8_t>(std::clamp(v * m + d[c] * (1.0f - sa), 0.0f, 255.0f) + 0.5f);
+				const float ch = c < 3 ? s[c] * (1.0f - k) + tint[c] * k : s[c];
+				d[c] = static_cast<uint8_t>(std::clamp(ch * m + d[c] * (1.0f - sa), 0.0f, 255.0f) + 0.5f);
 			}
 		}
 	}
