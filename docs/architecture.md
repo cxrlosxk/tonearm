@@ -75,6 +75,25 @@ Reduced motion replaces travel and scaling with short crossfades, makes the prog
 
 When the source isn't shown anywhere and has finished fading out, `video_tick` returns early: no scene updates, no rasterization, no draws.
 
+## Animated artwork
+
+Off by default, and nothing below exists until it is switched on.
+
+```
+SMTC track ──► MotionPlayer::tick (graphics thread, on track change)
+                 └─► MotionResolver thread ──► MotionSource::resolve()   (LocalFolderSource today)
+                        └─► deliver(): obs_source_update(child, file)    (opening media happens here)
+child = private "ffmpeg_source" (OBS's FFmpeg, HW decode, HLS, looping)
+video_render: MotionPlayer::prepare ──► copy the cropped frame into one texrender (≤ 30/s)
+              GpuCompositor ──► Video technique: cover crop, rounded mask, card clip, Editorial feather
+```
+
+- **Matching** (`core/motion.cpp`) normalizes names and splits album titles into a base and edition qualifiers, so Deluxe, remastered, single and anniversary releases never stand in for each other. Ambiguity means no match.
+- **Resolver** (`media/motion_resolver.cpp`): one thread per source. The newest request wins and running lookups are cancelled. Answers are cached, negative ones for 30 seconds. The same release is never looked up twice at once, and a throwing source counts as "no artwork". `MotionSource` is the extension point for other origins.
+- **Playback** (`obs/motion-player.cpp`) uses OBS's media source as a private, muted child. Before a different file is opened, the child's current frame is cleared, so a frame from the previous album can never be shown. Another track from the same album keeps the same video running. The child is paused when music pauses (optional) and whenever the Tonearm source isn't shown.
+- **Scene** (`core/scene.cpp`): the host reports which track its decoded video belongs to (`MotionFrame`). The scene fades the video in (460 ms) only when that is exactly the track on screen, and drops it at once on a change. The draw order is still cover, then video, then `artOverlay` (the Glass scrim and the Glass and Neon edge strokes), so text contrast and edges survive. The paused dim is a tint on the video instead of transparency.
+- **Masking** is defined once in `videoCoverage()` (CPU reference) and mirrored in `PSVideo`. Unit tests render every preset and layout and check that no pixel outside the artwork changes, that corners are masked and that the Editorial feather matches.
+
 ## Testing tools
 
 - `tonearm-render` (Linux) drives the real scene and rasterizer with the CPU reference compositor, which mirrors the shader's math, and writes PNG stills or frame sequences.

@@ -17,6 +17,7 @@ struct Rig {
 	tonearm::Clock::time_point base = tonearm::Clock::now();
 	std::vector<tonearm::DrawOp> ops;
 	int layerRasters = 0;
+	tonearm::MotionFrame motion; // what the host reports about animated artwork
 
 	explicit Rig(const tonearm::Style &s) : style(s), scene(s)
 	{
@@ -52,6 +53,7 @@ struct Rig {
 		in.provider = tonearm::ProviderState::Ready;
 		in.session = hasSession ? &session : nullptr;
 		in.now = at(t);
+		in.motion = motion;
 		scene.update(t, in);
 		if (auto req = scene.layerRequest()) {
 			scene.provideLayers(req->key, tonearm::rasterizeLayers(req->style, req->content, testsupport::text()));

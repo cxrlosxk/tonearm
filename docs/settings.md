@@ -72,6 +72,19 @@ The source includes room for the drop shadow, so the visible card is slightly sm
 | **When nothing is playing** | *Hide the overlay* fades it out when the player stops or closes. *Show a message* keeps the card up with your **Message**. |
 | **Show sample tracks when nothing is playing** | Shows invented sample tracks so you can design the scene without music playing. They rotate every 12 seconds to show the transitions. Turn this off before going live. |
 
+## Animated artwork (Experimental)
+
+Off by default. The full description is in [Animated artwork](animated-artwork.md).
+
+| Setting | Key | What it does |
+|---|---|---|
+| **Artwork** | `artwork_mode` | `static` (default) or `animated`: plays a matching video from the folder in place of the cover. |
+| **Preferred orientation** | `motion_orientation` | `auto`, `square` or `portrait`. |
+| **When music pauses** | `motion_pause` | `with_music` pauses the animation; `loop` keeps it looping. |
+| **Animated artwork folder** | `motion_folder` | Folder of `Artist - Album.mp4` files (` [tall]` for portrait). |
+
+These settings belong to the source, not to the look, so preset files don't include them. Reduce motion always shows the still cover.
+
 ## Music sources
 
 | Setting | What it does |

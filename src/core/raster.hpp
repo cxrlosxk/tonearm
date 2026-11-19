@@ -54,6 +54,19 @@ struct LayerSet {
 	LayerImage surface;    // shadow + card (and baked art for full-bleed compositions)
 	LayerImage glowRing;   // neon edge glow, animated separately
 	LayerImage art;
+
+	// Animated artwork: where a video frame goes and how it is masked, plus the parts
+	// of the still artwork that must stay on top of it (scrim, edge stroke).
+	struct VideoMask {
+		bool valid = false;
+		Rect box;              // artwork rect
+		float radius = 0;      // artwork corner radius
+		Rect clip;             // card rect (video never leaves the card)
+		float clipRadius = 0;
+		int featherEdge = 0;   // 0 none, 1 right edge, 2 bottom edge (Editorial hand-off)
+		float feather = 0;     // feather width in px
+	} videoMask;
+	LayerImage artOverlay;
 	LayerImage title, artist, album, source;
 	bool placeholder = false;
 };

@@ -45,6 +45,11 @@ bool GpuCompositor::init(const char *effectPath)
 	pHalf_ = gs_effect_get_param_by_name(effect_, "half_size");
 	pRadius_ = gs_effect_get_param_by_name(effect_, "radius");
 	pSoftness_ = gs_effect_get_param_by_name(effect_, "softness");
+	techVideo_ = gs_effect_get_technique(effect_, "Video");
+	pVRadius_ = gs_effect_get_param_by_name(effect_, "v_radius");
+	pVClip_ = gs_effect_get_param_by_name(effect_, "v_clip");
+	pVClipRadius_ = gs_effect_get_param_by_name(effect_, "v_clip_radius");
+	pVFeather_ = gs_effect_get_param_by_name(effect_, "v_feather");
 	return techLayer_ && techRect_;
 }
 
@@ -150,7 +155,38 @@ void GpuCompositor::drawRoundRect(const DrawOp &op)
 	gs_matrix_pop();
 }
 
-void GpuCompositor::render(const std::vector<DrawOp> &ops)
+void GpuCompositor::drawVideo(const DrawOp &op, gs_texture_t *tex)
+{
+	if (!techVideo_ || op.opacity <= 0.0f || op.dst.empty())
+		return;
+	gs_effect_set_texture(pImage_, tex);
+	gs_effect_set_float(pOpacity_, op.opacity);
+	struct vec4 dst, clip;
+	vec4_set(&dst, op.dst.x, op.dst.y, op.dst.w, op.dst.h);
+	gs_effect_set_vec4(pDst_, &dst);
+	vec4_set(&clip, op.clipRect.x, op.clipRect.y, op.clipRect.right(), op.clipRect.bottom());
+	gs_effect_set_vec4(pVClip_, &clip);
+	gs_effect_set_float(pVRadius_, op.radius);
+	gs_effect_set_float(pVClipRadius_, op.clipRadius);
+	struct vec2 feather;
+	vec2_set(&feather, static_cast<float>(op.featherEdge), op.feather);
+	gs_effect_set_vec2(pVFeather_, &feather);
+	struct vec4 tint;
+	vec4_set(&tint, op.color.r, op.color.g, op.color.b, op.color.a);
+	gs_effect_set_vec4(pColor_, &tint);
+
+	gs_matrix_push();
+	gs_matrix_translate3f(op.dst.x, op.dst.y, 0.0f);
+	gs_technique_begin(techVideo_);
+	gs_technique_begin_pass(techVideo_, 0);
+	gs_draw_sprite(tex, 0, static_cast<uint32_t>(std::max(1.0f, std::round(op.dst.w))),
+		       static_cast<uint32_t>(std::max(1.0f, std::round(op.dst.h))));
+	gs_technique_end_pass(techVideo_);
+	gs_technique_end(techVideo_);
+	gs_matrix_pop();
+}
+
+void GpuCompositor::render(const std::vector<DrawOp> &ops, gs_texture_t *video)
 {
 	++frame_;
 	if (!effect_)
@@ -164,10 +200,13 @@ void GpuCompositor::render(const std::vector<DrawOp> &ops)
 
 	for (const DrawOp &op : ops) {
 		if (op.kind == DrawOp::Kind::Image) {
-			if (!op.image || op.image->empty() || op.opacity <= 0.0f)
+			if (!op.image || op.image->empty() || op.opacity <= 0.0f || (op.needsVideo && !video))
 				continue;
 			if (gs_texture_t *tex = textureFor(op))
 				drawImage(op, tex);
+		} else if (op.kind == DrawOp::Kind::Video) {
+			if (video)
+				drawVideo(op, video);
 		} else {
 			drawRoundRect(op);
 		}

@@ -11,7 +11,7 @@ namespace tonearm {
 
 // One draw command for the compositor. Images are premultiplied.
 struct DrawOp {
-	enum class Kind { Image, RoundRect } kind = Kind::Image;
+	enum class Kind { Image, RoundRect, Video } kind = Kind::Image;
 
 	// Image
 	ImagePtr image;
@@ -27,12 +27,32 @@ struct DrawOp {
 	float radius = 0;
 	Color color;             // straight alpha
 	float softness = 0;      // 0 = crisp anti-aliased edge; > 0 = blurred glow falloff in px
+
+	// Image drawn only together with the video (scrim/stroke over animated artwork);
+	// skipped whenever the compositor has no video frame.
+	bool needsVideo = false;
+
+	// Video (animated artwork): the host supplies the current frame. `dst` is the
+	// artwork box; the frame is center-cropped to fill it ("cover"), masked by a
+	// rounded rect of `radius`, clipped to `clipRect`/`clipRadius`, and feathered
+	// along one edge. Opacity is in `opacity`; `color` (rgb) is a tint mixed in by
+	// `color.a` (used for the paused dim).
+	float clipRadius = 0;
+	int featherEdge = 0;     // 0 none, 1 right, 2 bottom
+	float feather = 0;
+};
+
+// The host's animated artwork state for the current frame.
+struct MotionFrame {
+	std::string identity;    // track identity the loaded video belongs to
+	bool ready = false;      // a decoded frame of that video is available
 };
 
 struct SceneInput {
 	ProviderState provider = ProviderState::Starting;
 	const MediaSession *session = nullptr; // selected session, may be null
 	Clock::time_point now{};
+	MotionFrame motion;
 };
 
 struct LayerRequest {
@@ -73,6 +93,13 @@ public:
 	bool animating(double t) const;
 	bool visible() const { return appear_ > 0.001f || targetVisible_; }
 
+	// Identity of the track whose artwork is shown (empty when none).
+	const std::string &shownIdentity() const;
+	// Layers currently shown (null before the first raster).
+	const std::shared_ptr<const LayerSet> &currentLayers() const { return cur_.layers; }
+	// Opacity of the animated artwork over the still cover, 0..1.
+	float videoMix() const { return videoMix_; }
+
 private:
 	struct Deck {
 		std::shared_ptr<const LayerSet> layers;
@@ -87,6 +114,7 @@ private:
 	Vec2 shiftOut(int element, float p) const;
 	void emitText(std::vector<DrawOp> &out, const LayerImage &li, double t, const Deck &deck, float opacity, Vec2 shift) const;
 	void emitImage(std::vector<DrawOp> &out, const LayerImage &li, float opacity, Vec2 shift, float scale = 1.0f) const;
+	void emitVideo(std::vector<DrawOp> &out, const LayerSet &set, float opacity, float scale) const;
 	Rect transform(const Rect &r) const;
 	double duration(double baseMs) const;
 	uint64_t lastProvidedKey() const;
@@ -120,6 +148,10 @@ private:
 	double appearChangedAt_ = -1e9;
 	float appearFrom_ = 0;
 	float dim_ = 0;             // paused dimming 0..1
+
+	// Animated artwork
+	float videoMix_ = 0;
+	std::string videoIdentity_;
 
 	double lastT_ = 0;
 	std::string lastAppId_;
