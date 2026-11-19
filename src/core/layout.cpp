@@ -279,8 +279,8 @@ Layout computeLayout(const Style &s, const LayoutContent &content)
 				} else {
 					L.artPlacement = ArtPlacement::Inset;
 					const float side = std::max(0.0f, std::min(inner.w, inner.h - block - gapProg - progH - gapArt));
-					const float content = side + gapArt + block + gapProg + progH;
-					const float top = inner.y + std::max(0.0f, std::round((inner.h - content) * 0.5f));
+					const float stackH = side + gapArt + block + gapProg + progH;
+					const float top = inner.y + std::max(0.0f, std::round((inner.h - stackH) * 0.5f));
 					const float ax = centered ? inner.x + (inner.w - side) * 0.5f : inner.x;
 					L.art = {std::round(ax), top, std::round(side), std::round(side)};
 					L.artRadius = std::min(std::round(s.artworkRadius * u), side * 0.5f);

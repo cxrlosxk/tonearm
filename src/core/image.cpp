@@ -12,7 +12,7 @@ Image::Image(int w, int h) : w_(std::max(0, w)), h_(std::max(0, h)), px_(static_
 
 void Image::clear()
 {
-	std::fill(px_.begin(), px_.end(), 0);
+	std::fill(px_.begin(), px_.end(), uint8_t{0});
 }
 
 void Image::fill(const Color &c)

@@ -48,7 +48,7 @@ Image coverSunset(int n)
 		const float y = N * (0.6f + i * 0.04f);
 		const float hgt = N * (0.006f + i * 0.004f);
 		for (int yy = static_cast<int>(y); yy < static_cast<int>(y + hgt) && yy < n; ++yy)
-			std::fill(sun.row(yy), sun.row(yy) + sun.stride(), 0);
+			std::fill(sun.row(yy), sun.row(yy) + sun.stride(), uint8_t{0});
 	}
 	composite(img, sun, 0, 0);
 	fillRoundRect(img, {0, N * 0.83f, N, N * 0.17f}, 0, Paint::linear({0, N * 0.83f}, {0, N}, {{0, Color::hex("#2b1638")}, {1, Color::hex("#120a1f")}}));
