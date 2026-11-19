@@ -48,6 +48,9 @@ public:
 	gs_texture_t *prepare(const std::vector<DrawOp> &ops, const Rect &box, double t);
 
 	bool enabled() const { return enabled_.load(); }
+	// Graphics-thread only. OBS async video color format, not the user's
+	// quality preference, determines whether the shader needs sRGB encoding.
+	bool videoNeedsSrgbEncode() const { return videoNeedsSrgbEncode_; }
 
 private:
 	void teardown();
@@ -87,6 +90,8 @@ private:
 	double lastCapture_ = -1;
 	uint32_t texW_ = 0, texH_ = 0;
 	bool haveTexture_ = false;
+	bool videoNeedsSrgbEncode_ = false;
+	uint64_t loggedTransferGeneration_ = ~0ull;
 	uint64_t capturedGeneration_ = ~0ull;
 };
 
