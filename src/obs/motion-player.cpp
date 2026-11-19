@@ -160,6 +160,7 @@ void MotionPlayer::deliver(uint64_t serial, const std::optional<MotionAsset> &as
 		if (serial == wantedSerial_)
 			loadedIdentity_ = identity;
 		blog(LOG_INFO, "[tonearm] motion asset loaded; source=%s, shape=%s",
+		     asset->location.find("MotionCache") != std::string::npos ? "cached online HLS" :
 		     asset->location.rfind("https://", 0) == 0 ? "online" : "local",
 		     asset->shape == MotionShape::Portrait ? "portrait" : "square");
 	}
