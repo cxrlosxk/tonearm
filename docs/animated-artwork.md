@@ -92,6 +92,12 @@ If the cover is still static after an uncached album has played for 30 seconds, 
 
 The Windows CI suite covers compilation, core matching/resolver tests, and live Apple HLS download/album-index checks. It does **not** reproduce the actual GPU, Apple Music app, or OBS scene layout on every viewer's PC.
 
+## Accurate video color
+
+OBS Studio's FFmpeg media source does not always expose frames in the same transfer encoding. Ordinary 8-bit SDR video can already be sRGB-encoded, while higher-precision sources may be rendered in linear light. Tonearm checks the private media source's **actual OBS color space** for each animation. It passes standard sRGB video to the compositor without another gamma conversion and applies a linear-to-sRGB transfer only for the appropriate high-precision SDR path. This prevents the over-bright, washed-out appearance that occurs if the transfer is applied to H.264/sRGB twice.
+
+The intermediate capture explicitly disables framebuffer sRGB writes and restores the prior graphics state afterward. Static covers, UI colors, and preset backgrounds remain unchanged by this video-only correction.
+
 ## Performance
 
 These numbers come from OBS Studio 30.0.2 on a 4-core Linux container. It has **no GPU**, so all rendering is software OpenGL and decoding is software only. Rendering work that a graphics card would do shows up here as CPU time, so read the numbers as an upper bound for this machine, not a prediction for Windows. Each figure is OBS's whole-process CPU over 48 seconds of the scripted player, at 1280×720 and 30 fps, with a 720×720 H.264 test video at 30 fps.
