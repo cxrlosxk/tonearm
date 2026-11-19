@@ -299,8 +299,16 @@ gs_texture_t *MotionPlayer::prepare(const std::vector<DrawOp> &ops, const Rect &
 	// Cap the GPU capture to avoid excessive bandwidth on slower computers;
 	// this is a *downscale-only* cap, never an artificial upscale.
 	const CropRect crop = coverCrop(static_cast<int>(vw), static_cast<int>(vh), box.w, box.h);
-	const float kMaxCaptureDimension = quality_.load() == MotionQuality::Maximum ? 2160.0f : 1080.0f;
-	const float captureScale = std::min(1.0f, kMaxCaptureDimension / std::max(crop.w, crop.h));
+	// A 2160-pixel GPU copy every frame is wasteful for a 200-400-pixel
+	// OBS overlay, even when the source video itself is 2160p. Preserve
+	// excellent detail by supersampling at 3x the displayed artwork size,
+	// while bounding the GPU pass to 1440p (Maximum) or 1080p (Balanced).
+	// This leaves the original high-bitrate decoded Apple video untouched.
+	const bool maximum = quality_.load() == MotionQuality::Maximum;
+	const float requested = std::max(box.w, box.h) * (maximum ? 3.0f : 2.5f);
+	const float captureLimit = std::clamp(requested, maximum ? 768.0f : 576.0f,
+					     maximum ? 1440.0f : 1080.0f);
+	const float captureScale = std::min(1.0f, captureLimit / std::max(crop.w, crop.h));
 	const uint32_t tw = std::max(1u, static_cast<uint32_t>(std::lround(crop.w * captureScale)));
 	const uint32_t th = std::max(1u, static_cast<uint32_t>(std::lround(crop.h * captureScale)));
 	const bool sizeChanged = tw != texW_ || th != texH_;
