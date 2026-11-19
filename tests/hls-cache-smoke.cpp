@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Windows CI smoke test: exercise the same finite-HLS cache used by Tonearm.
 #include "obs/hls-cache.hpp"
+#include "obs/motion-index.hpp"
 
 #include <atomic>
 #include <filesystem>
@@ -19,6 +20,33 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	const std::filesystem::path manifest = std::filesystem::u8path(*local);
+	// Persistent album index must survive provider recreation and identify
+	// the same release across different track artists.
+	tonearm::MotionQuery q;
+	q.artist = "Gorillaz";
+	q.albumArtist = "Gorillaz";
+	q.album = "Plastic Beach";
+	q.title = "Melancholy Hill";
+	q.preferred = tonearm::MotionShape::Square;
+	q.quality = tonearm::MotionQuality::Maximum;
+	const tonearm::MotionAsset asset{*local, tonearm::MotionShape::Square};
+	if (!tonearm::rememberMotionForAlbum(q, asset)) {
+		std::cerr << "Failed to persist album motion index\n";
+		return 1;
+	}
+	q.title = "Empire Ants";
+	q.artist = "Gorillaz feat. Little Dragon";
+	const auto replay = tonearm::cachedMotionForAlbum(q);
+	if (!replay || replay->location != *local) {
+		std::cerr << "Cached motion video not found for a different track of the same album\n";
+		return 1;
+	}
+	q.album = "Plastic Beach (Super Deluxe)";
+	if (tonearm::cachedMotionForAlbum(q)) {
+		std::cerr << "Persistent index confused two album editions\n";
+		return 1;
+	}
+	std::cout << "Persistent album replay lookup passed\n";
 	if (manifest.extension() == ".mp4") {
 		std::ifstream file(manifest, std::ios::binary);
 		char header[8]{};
