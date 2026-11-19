@@ -83,7 +83,13 @@ if(TONEARM_BUILD_PLUGIN)
   )
   target_link_libraries(tonearm PRIVATE tonearm_media OBS::libobs)
   set_target_properties(tonearm PROPERTIES PREFIX "")
-  target_compile_definitions(tonearm PRIVATE TONEARM_VERSION="${PROJECT_VERSION}")
+  execute_process(COMMAND git rev-parse --short=8 HEAD
+                  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                  OUTPUT_VARIABLE TONEARM_BUILD_REV OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+  if(NOT TONEARM_BUILD_REV)
+    set(TONEARM_BUILD_REV "unknown")
+  endif()
+  target_compile_definitions(tonearm PRIVATE TONEARM_VERSION="${PROJECT_VERSION}" TONEARM_BUILD_REV="${TONEARM_BUILD_REV}")
 
   if(WIN32)
     target_sources(tonearm PRIVATE src/obs/remote-motion-source.cpp src/obs/hls-cache.cpp)
