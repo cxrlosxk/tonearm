@@ -55,7 +55,11 @@ jobs:
       - name: Fetch OBS Studio source
         if: steps.obs-cache.outputs.cache-hit != 'true'
         shell: pwsh
-        run: git clone --depth 1 --branch $env:OBS_VERSION https://github.com/obsproject/obs-studio.git obs-studio
+        run: |
+          git clone --depth 1 --branch $env:OBS_VERSION https://github.com/obsproject/obs-studio.git obs-studio
+          # OBS configures a 32-bit slice as a child process on Windows, and that
+          # slice reads libdshowcapture even when plugins are turned off.
+          git -C obs-studio submodule update --init --recursive --depth 1 plugins/win-dshow/libdshowcapture
 
       - name: Build libobs
         if: steps.obs-cache.outputs.cache-hit != 'true'
@@ -63,8 +67,13 @@ jobs:
         working-directory: obs-studio
         run: |
           # The windows-x64 preset downloads OBS's prebuilt dependencies itself.
-          cmake --preset windows-x64 -DENABLE_UI=OFF -DENABLE_PLUGINS=OFF -DENABLE_SCRIPTING=OFF
-          cmake --build build_x64 --target libobs --config RelWithDebInfo
+          # An empty virtual camera GUID keeps the 32-bit slice from configuring
+          # the virtual camera module, which plugins don't need.
+          cmake --preset windows-x64 -DENABLE_UI=OFF -DENABLE_PLUGINS=OFF -DENABLE_SCRIPTING=OFF `
+            -DENABLE_BROWSER=OFF -DVIRTUALCAM_GUID= -DOBS_VERSION_OVERRIDE="$env:OBS_VERSION"
+          # obs-frontend-api depends on libobs and w32-pthreads, so this builds every
+          # target the Development install component expects to find.
+          cmake --build build_x64 --target obs-frontend-api --config RelWithDebInfo -- /m
           cmake --install build_x64 --component Development --config RelWithDebInfo --prefix "${{ runner.temp }}/obs-sdk"
 
       - name: Configure
