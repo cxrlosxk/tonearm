@@ -20,6 +20,17 @@ try {
   $response = Invoke-WebRequest -Uri $uri -Method Get -SkipHttpErrorCheck -TimeoutSec 15
   $obj = if ($response.StatusCode -eq 200) { $response.Content | ConvertFrom-Json } else { $null }
   Write-Host "Mermaid direct official album: HTTP=$($response.StatusCode), artist=$($obj.artist), album=$($obj.album), square=$([bool]$obj.url), tall=$([bool]$obj.url_tall)"
+  if ($obj.url) {
+    $cacheProbe = Join-Path (Get-Location) 'build/RelWithDebInfo/tonearm-hls-cache-smoke.exe'
+    if (Test-Path $cacheProbe) {
+      & $cacheProbe $obj.url balanced
+      if ($LASTEXITCODE -eq 0) {
+        Write-Host 'Verified: complete Little Mermaid original motion video caches successfully in H.264'
+      } else {
+        Write-Warning 'Little Mermaid animated HLS was returned, but failed native local video caching'
+      }
+    }
+  }
 } catch {
   Write-Warning "Mermaid direct URL lookup failure: $($_.Exception.Message)"
 }
