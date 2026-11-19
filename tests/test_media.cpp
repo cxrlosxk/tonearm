@@ -85,6 +85,7 @@ TEST("media: apps are recognised from their Windows ids")
 	CHECK(appKeyword(kAppleMusic) == "applemusic");
 	CHECK(appKeyword("Contoso.Player_abc123!App") == "player");
 	CHECK(appKeyword("SomePlayer.exe") == "someplayer");
+	CHECK(appKeyword("youtubemusic") == appKeyword("YouTube Music Desktop App.exe"));
 }
 
 TEST("media: a playing session wins over a paused one")

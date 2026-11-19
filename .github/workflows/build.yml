@@ -1,0 +1,141 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # libobs version the plugin is compiled against. Plugins built against an older
+  # libobs load in newer OBS releases, so this stays at the oldest supported version.
+  OBS_VERSION: 30.2.3
+
+jobs:
+  linux:
+    name: Linux (core, tests, plugin compile check)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build pkg-config libobs-dev libpango1.0-dev libfontconfig-dev fonts-noto-cjk
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTONEARM_BUILD_TESTS=ON
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  windows:
+    name: Windows x64 (plugin package)
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: tonearm
+
+      - name: Cache libobs SDK
+        id: obs-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/obs-sdk
+          key: obs-sdk-${{ env.OBS_VERSION }}-windows-x64-v1
+
+      - name: Fetch OBS Studio source
+        if: steps.obs-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: git clone --depth 1 --branch $env:OBS_VERSION https://github.com/obsproject/obs-studio.git obs-studio
+
+      - name: Build libobs
+        if: steps.obs-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        working-directory: obs-studio
+        run: |
+          # The windows-x64 preset downloads OBS's prebuilt dependencies itself.
+          cmake --preset windows-x64 -DENABLE_UI=OFF -DENABLE_PLUGINS=OFF -DENABLE_SCRIPTING=OFF
+          cmake --build build_x64 --target libobs --config RelWithDebInfo
+          cmake --install build_x64 --component Development --config RelWithDebInfo --prefix "${{ runner.temp }}/obs-sdk"
+
+      - name: Configure
+        shell: pwsh
+        working-directory: tonearm
+        run: >
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+          -DCMAKE_PREFIX_PATH="${{ runner.temp }}/obs-sdk"
+          -DTONEARM_BUILD_TESTS=ON
+
+      - name: Build
+        shell: pwsh
+        working-directory: tonearm
+        run: cmake --build build --config RelWithDebInfo
+
+      - name: Test
+        shell: pwsh
+        working-directory: tonearm
+        run: ctest --test-dir build -C RelWithDebInfo --output-on-failure
+
+      - name: Package
+        shell: pwsh
+        working-directory: tonearm
+        run: |
+          $version = (Select-String -Path CMakeLists.txt -Pattern 'project\(tonearm VERSION ([0-9.]+)').Matches[0].Groups[1].Value
+          if ($env:GITHUB_REF -like 'refs/tags/v*') { $label = $env:GITHUB_REF_NAME } else { $label = "$version-$($env:GITHUB_SHA.Substring(0,7))" }
+          cmake --install build --config RelWithDebInfo --prefix stage
+          # Debug symbols ship as a separate download.
+          New-Item -ItemType Directory -Force symbols | Out-Null
+          Move-Item stage/obs-plugins/64bit/*.pdb symbols/ -ErrorAction SilentlyContinue
+          Copy-Item README.md, LICENSE, NOTICE.md, CHANGELOG.md stage/
+          Compress-Archive -Path stage/* -DestinationPath "tonearm-$label-windows-x64.zip"
+          Compress-Archive -Path symbols/* -DestinationPath "tonearm-$label-windows-x64-pdb.zip"
+          "LABEL=$label" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: tonearm-${{ env.LABEL }}-windows-x64
+          path: |
+            tonearm/tonearm-*-windows-x64.zip
+            tonearm/tonearm-*-windows-x64-pdb.zip
+
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [linux, windows]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Extract release notes
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '
+            $0 ~ "^## \\[?"v"\\]?" {on=1; next}
+            on && /^## / {exit}
+            on {print}
+          ' CHANGELOG.md > notes.md
+          test -s notes.md || echo "See CHANGELOG.md." > notes.md
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/*.zip \
+            --draft --title "Tonearm ${GITHUB_REF_NAME#v}" --notes-file notes.md

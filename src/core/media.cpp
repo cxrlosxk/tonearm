@@ -65,6 +65,7 @@ const KnownApp kApps[] = {
 	{"zunemusic", "mediaplayer", "Media Player", AppKind::OtherPlayer},
 	{"microsoft.media", "mediaplayer", "Media Player", AppKind::OtherPlayer},
 	{"youtube music", "ytmusic", "YouTube Music", AppKind::OtherPlayer},
+	{"youtubemusic", "ytmusic", "YouTube Music", AppKind::OtherPlayer},
 	{"ytmdesktop", "ytmusic", "YouTube Music", AppKind::OtherPlayer},
 	{"msedge", "edge", "Microsoft Edge", AppKind::Browser},
 	{"chrome", "chrome", "Google Chrome", AppKind::Browser},

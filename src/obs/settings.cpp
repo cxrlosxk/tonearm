@@ -91,12 +91,21 @@ void addList(obs_properties_t *g, const char *key, const char *label, std::initi
 		obs_property_list_add_string(p, T_(it.second), it.first);
 }
 
-void addFamilyList(obs_properties_t *g, const char *key, const char *label)
+// A fixed list rather than an editable combo box: OBS shows an editable combo's raw
+// value, so "use the preset's font" (an empty value) would appear as a blank field.
+void addFamilyList(obs_properties_t *g, const char *key, const char *label, obs_data_t *settings)
 {
-	obs_property_t *p = obs_properties_add_list(g, key, label, OBS_COMBO_TYPE_EDITABLE, OBS_COMBO_FORMAT_STRING);
+	obs_property_t *p = obs_properties_add_list(g, key, label, OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(p, T_("Font.PresetDefault"), "");
-	for (const char *f : {"Inter", "Inter Display", "IBM Plex Sans", "IBM Plex Mono", "EB Garamond"})
+	bool listed = false;
+	const std::string current = settings ? obs_data_get_string(settings, key) : "";
+	for (const char *f : {"Inter", "Inter Display", "IBM Plex Sans", "IBM Plex Mono", "EB Garamond"}) {
 		obs_property_list_add_string(p, f, f);
+		listed |= current == f;
+	}
+	// Keep a family that came from an imported preset selectable.
+	if (!current.empty() && !listed)
+		obs_property_list_add_string(p, current.c_str(), current.c_str());
 }
 
 obs_properties_t *root(obs_properties_t *props)
@@ -425,6 +434,7 @@ bool importPreset(obs_data_t *settings, const char *path, std::string &error)
 obs_properties_t *buildProperties(PropertiesContext *ctx)
 {
 	obs_properties_t *props = obs_properties_create();
+	obs_data_t *settings = ctx && ctx->source ? obs_source_get_settings(ctx->source) : nullptr;
 
 	// --- Look ---------------------------------------------------------------
 	obs_properties_t *look = obs_properties_create();
@@ -481,8 +491,8 @@ obs_properties_t *buildProperties(PropertiesContext *ctx)
 
 	// --- Type ---------------------------------------------------------------
 	obs_properties_t *type = obs_properties_create();
-	addFamilyList(type, "title_family", T_("TitleFont"));
-	addFamilyList(type, "body_family", T_("BodyFont"));
+	addFamilyList(type, "title_family", T_("TitleFont"), settings);
+	addFamilyList(type, "body_family", T_("BodyFont"), settings);
 	p = obs_properties_add_int_slider(type, "text_scale", T_("TextScale"), 50, 200, 5);
 	obs_property_int_set_suffix(p, "%");
 	obs_properties_add_group(props, "group_type", T_("Group.Type"), OBS_GROUP_NORMAL, type);
@@ -533,6 +543,7 @@ obs_properties_t *buildProperties(PropertiesContext *ctx)
 	obs_properties_add_button2(files, "import", T_("Import"), onImport, ctx);
 	obs_properties_add_group(props, "group_files", T_("Group.Files"), OBS_GROUP_NORMAL, files);
 
+	obs_data_release(settings);
 	return props;
 }
 
