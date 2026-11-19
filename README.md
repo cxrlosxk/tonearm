@@ -6,7 +6,7 @@ A now-playing overlay for OBS Studio on Windows. Tonearm reads what Apple Music,
 
 ![A track change in each preset](docs/media/demo.gif)
 
-> **Status: 0.1.0, pre-release.** The rendering, layouts, settings and OBS integration are tested inside OBS on Linux, and the Windows build compiles and passes its unit tests in CI. The Windows media connection (SMTC) has not yet been run with real players. See [what has been verified](docs/testing.md) before relying on it for a stream.
+> **Status: v0.2.0 experimental release candidate.** Tonearm's Windows now-playing and genuine Apple Music animated-artwork integration have been exercised with real playback on a user's PC. The Windows and Linux CI pipelines check compilation and core tests; Windows CI also verifies real motion-video downloads and persistent album-cache reuse. Full smoothness and hardware-decoder performance must still be checked on each user's OBS configuration before a stable release.
 
 ## What it does
 
@@ -54,7 +54,7 @@ To remove it, delete those two items again. [Getting started](docs/getting-start
 
 ![Tonearm settings with live preview](docs/media/settings.webp)
 
-Settings are grouped into Look, Surface, Color, Typography, Motion, Playback states, Music sources and Preset files, and the OBS properties window previews every change live. Switch on **Show sample tracks when nothing is playing** while you design the scene, then switch it off before going live. Every option is described in the [settings reference](docs/settings.md). An experimental **Animated artwork** group can automatically display genuine Apple Music motion HLS artwork on Windows through a third-party API, or play locally supplied video files ([details](docs/animated-artwork.md)).
+Settings are grouped into Look, Surface, Color, Typography, Motion, Playback states, Music sources and Preset files, and the OBS properties window previews every change live. Switch on **Show sample tracks when nothing is playing** while you design the scene, then switch it off before going live. Every option is described in the [settings reference](docs/settings.md). An experimental **Animated artwork** group can automatically display genuine Apple Music motion HLS artwork on Windows through a third-party API, or play locally supplied video files. Smart quality and local album caching reduce latency and GPU load ([details](docs/animated-artwork.md)).
 
 ## How it compares
 
@@ -82,7 +82,7 @@ These are deliberate or come from what Windows provides. They are explained in m
 - **Artwork resolution is up to the player.** Some players hand Windows a small thumbnail. Tonearm upscales it smoothly, but it can look soft on large layouts.
 - **Apple Music combines artist and album** into one field (`Artist — Album`). Tonearm splits it back apart, which can misfire if an artist name itself contains ` — `.
 - **No playback controls.** Tonearm displays what's playing; it doesn't play, pause or skip.
-- **Animated artwork is experimental.** On Windows, enabling the feature with a blank local-folder field queries an unofficial third-party artwork service for genuine Apple Music motion HLS streams. Availability is not guaranteed; album/track metadata is sent to that service. Set a folder to use local files only. See [Animated artwork](docs/animated-artwork.md).
+- **Animated artwork is experimental.** On Windows, enabling the feature with a blank local-folder field queries an unofficial third-party artwork service for genuine Apple Music motion HLS streams. Availability is not guaranteed; artist and album metadata are sent to that service when an album isn't already cached locally. Set a folder to use local files only. See [Animated artwork](docs/animated-artwork.md).
 - **Windows only for live data.** Linux (MPRIS) and macOS support are not written yet.
 
 ## Building from source
