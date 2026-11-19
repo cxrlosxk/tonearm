@@ -2,9 +2,58 @@
 #include "catalog_match.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <vector>
 
 namespace tonearm {
+
+std::string motionBaseAlbumQuery(const std::string &album)
+{
+	const auto original = albumKey(album);
+	if (original.base.empty())
+		return {};
+	// Bracket/dash edition designations are already understood by albumKey().
+	for (const char open : {'(', '['}) {
+		const auto pos = album.rfind(open);
+		if (pos != std::string::npos && pos > 0) {
+			std::string shortTitle = album.substr(0, pos);
+			while (!shortTitle.empty() && std::isspace(static_cast<unsigned char>(shortTitle.back())))
+				shortTitle.pop_back();
+			if (albumKey(shortTitle).base == original.base && !shortTitle.empty())
+				return shortTitle;
+		}
+	}
+	const auto dash = album.rfind(" - ");
+	if (dash != std::string::npos && dash > 0) {
+		const std::string prefix = album.substr(0, dash);
+		if (albumKey(prefix).base == original.base)
+			return prefix;
+	}
+	// Some Apple release titles use a plain, non-bracketed suffix, e.g.
+	// "eternal sunshine deluxe: brighter days ahead".
+	const std::string normalized = normalizeName(album);
+	for (const std::string marker : {" deluxe ", " deluxe", " expanded ", " anniversary edition "}) {
+		const auto at = normalized.find(marker);
+		if (at != std::string::npos && at >= 3)
+			return normalized.substr(0, at);
+	}
+	return {};
+}
+
+bool compatibleMotionAlbumTitle(const std::string &requested, const std::string &returned)
+{
+	const AlbumKey want = albumKey(requested);
+	const AlbumKey got = albumKey(returned);
+	if (want.base.empty() || got.base.empty())
+		return false;
+	if (want.base == got.base)
+		return want.edition == got.edition || want.edition.empty() || got.edition.empty();
+	const std::string wantBaseQuery = motionBaseAlbumQuery(requested);
+	const std::string gotBaseQuery = motionBaseAlbumQuery(returned);
+	// Accept only clearly marked generic promo suffixes, not similar albums.
+	return (!wantBaseQuery.empty() && albumKey(wantBaseQuery).base == got.base && got.edition.empty()) ||
+	       (!gotBaseQuery.empty() && albumKey(gotBaseQuery).base == want.base && want.edition.empty());
+}
 
 bool catalogArtistMatches(const MotionQuery &nowPlaying, const std::string &catalogArtist)
 {
