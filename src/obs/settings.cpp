@@ -140,7 +140,7 @@ bool onToggles(void *, obs_properties_t *props, obs_property_t *, obs_data_t *se
 	obs_property_set_visible(obs_properties_get(props, "idle_text"), !strcmp(obs_data_get_string(settings, "idle_behavior"), "message"));
 	obs_property_set_visible(obs_properties_get(props, "marquee_speed"), obs_data_get_bool(settings, "marquee"));
 	const bool animated = !strcmp(obs_data_get_string(settings, "artwork_mode"), "animated");
-	for (const char *k : {"motion_orientation", "motion_pause", "motion_folder", "motion_note"})
+	for (const char *k : {"motion_orientation", "motion_quality", "motion_pause", "motion_folder", "motion_note"})
 		obs_property_set_visible(obs_properties_get(props, k), animated);
 	const bool list = strcmp(obs_data_get_string(settings, "source_mode"), "auto") != 0;
 	obs_property_set_visible(obs_properties_get(props, "source_list"), list);
@@ -268,6 +268,7 @@ void settingsDefaults(obs_data_t *d)
 	obs_data_set_default_bool(d, "sample_when_idle", false);
 	obs_data_set_default_string(d, "artwork_mode", "static");
 	obs_data_set_default_string(d, "motion_orientation", "auto");
+	obs_data_set_default_string(d, "motion_quality", "smart");
 	obs_data_set_default_string(d, "motion_pause", "with_music");
 	obs_data_set_default_string(d, "motion_folder", "");
 	obs_data_set_default_string(d, "source_mode", "auto");
@@ -338,6 +339,8 @@ Style styleFromSettings(obs_data_t *d)
 	s.motionOrientation = !strcmp(mo, "square") ? MotionOrientation::Square
 			      : !strcmp(mo, "portrait") ? MotionOrientation::Portrait
 							 : MotionOrientation::Automatic;
+	s.motionQuality = !strcmp(obs_data_get_string(d, "motion_quality"), "smart") ? MotionQuality::Smart :
+		!strcmp(obs_data_get_string(d, "motion_quality"), "balanced") ? MotionQuality::Balanced : MotionQuality::Maximum;
 	s.motionPause = !strcmp(obs_data_get_string(d, "motion_pause"), "loop") ? MotionPause::KeepLooping : MotionPause::WithMusic;
 	s.motionFolder = obs_data_get_string(d, "motion_folder");
 	return s;
@@ -534,6 +537,8 @@ obs_properties_t *buildProperties(PropertiesContext *ctx)
 	obs_property_set_modified_callback2(p, onToggles, ctx);
 	addList(anim, "motion_orientation", T_("MotionOrientation"),
 		{{"auto", "MotionOrientation.Auto"}, {"square", "MotionOrientation.Square"}, {"portrait", "MotionOrientation.Portrait"}});
+	addList(anim, "motion_quality", T_("MotionQuality"),
+		{{"smart", "MotionQuality.Smart"}, {"maximum", "MotionQuality.Maximum"}, {"balanced", "MotionQuality.Balanced"}});
 	addList(anim, "motion_pause", T_("MotionPause"), {{"with_music", "MotionPause.WithMusic"}, {"loop", "MotionPause.Loop"}});
 	obs_properties_add_path(anim, "motion_folder", T_("MotionFolder"), OBS_PATH_DIRECTORY, nullptr, nullptr);
 	obs_properties_add_text(anim, "motion_note", T_("MotionNote"), OBS_TEXT_INFO);

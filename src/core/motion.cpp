@@ -9,6 +9,18 @@
 
 namespace tonearm {
 
+MotionQuality effectiveMotionQuality(MotionQuality selection, float artworkMaxDimension)
+{
+	if (selection != MotionQuality::Smart)
+		return selection;
+	return artworkMaxDimension >= 540.0f ? MotionQuality::Maximum : MotionQuality::Balanced;
+}
+
+bool shouldCaptureMotionFrame(double currentSec, double previousSec, double maxFps)
+{
+	return maxFps > 0.0 && currentSec - previousSec >= (1.0 / maxFps - 1e-4);
+}
+
 bool wantsMotion(const Style &s)
 {
 	return s.artworkMode == ArtworkMode::AnimatedWhenAvailable && !s.reducedMotion && s.showArtwork;

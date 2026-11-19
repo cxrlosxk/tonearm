@@ -164,6 +164,33 @@ TEST("motion: names with dashes, shape tags and unsupported files")
 	CHECK(!find(lib, "Lorde", "Solar Power"));
 }
 
+TEST("motion: capture schedule retains every 60 FPS animation frame")
+{
+	double previous = -1.0;
+	int captured = 0;
+	for (int i = 0; i < 120; ++i) {
+		const double t = i / 60.0;
+		if (previous < 0.0 || shouldCaptureMotionFrame(t, previous)) {
+			++captured;
+			previous = t;
+		}
+	}
+	CHECK(captured == 120);
+	CHECK(!shouldCaptureMotionFrame(0.010, 0.0));
+	CHECK(shouldCaptureMotionFrame(0.0166667, 0.0));
+	CHECK(shouldCaptureMotionFrame(0.0333333, 0.0));
+}
+
+TEST("motion: Smart chooses high-quality efficient video for compact OBS artwork")
+{
+	CHECK(effectiveMotionQuality(MotionQuality::Smart, 200) == MotionQuality::Balanced);
+	CHECK(effectiveMotionQuality(MotionQuality::Smart, 400) == MotionQuality::Balanced);
+	CHECK(effectiveMotionQuality(MotionQuality::Smart, 540) == MotionQuality::Maximum);
+	CHECK(effectiveMotionQuality(MotionQuality::Smart, 800) == MotionQuality::Maximum);
+	CHECK(effectiveMotionQuality(MotionQuality::Maximum, 150) == MotionQuality::Maximum);
+	CHECK(effectiveMotionQuality(MotionQuality::Balanced, 1500) == MotionQuality::Balanced);
+}
+
 TEST("motion: cover crop fills the box without distortion")
 {
 	CropRect c = coverCrop(1080, 1440, 300, 300); // portrait video into a square box
@@ -322,6 +349,29 @@ TEST("resolver: the same release requested twice runs one lookup")
 	src->release();
 	CHECK(eventually([&] { return d.size() >= 1; }));
 	std::this_thread::sleep_for(30ms);
+	CHECK(src->calls == 1);
+	CHECK(d.last().first == 2);
+}
+
+TEST("resolver: tracks with the same album artist share a motion lookup")
+{
+	auto *src = new FakeSource;
+	src->available = {"Soundtrack"};
+	src->block = true;
+	Delivered d;
+	MotionResolver r(std::unique_ptr<MotionSource>(src),
+		[&](uint64_t serial, const std::optional<MotionAsset> &a) { d.add(serial, a); });
+	MotionQuery first = query("Soundtrack");
+	first.artist = "Performer One";
+	first.albumArtist = "Compilation Cast";
+	r.request(1, first);
+	CHECK(eventually([&] { return src->calls == 1; }));
+	MotionQuery second = first;
+	second.artist = "Performer Two";
+	second.title = "Next Track";
+	r.request(2, second);
+	src->release();
+	CHECK(eventually([&] { return d.size() >= 1; }));
 	CHECK(src->calls == 1);
 	CHECK(d.last().first == 2);
 }

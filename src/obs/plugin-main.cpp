@@ -20,7 +20,7 @@ MODULE_EXPORT const char *obs_module_name(void)
 bool obs_module_load(void)
 {
 	tonearm::registerTonearmSource();
-	blog(LOG_INFO, "[tonearm] loaded version %s", TONEARM_VERSION);
+	blog(LOG_INFO, "[tonearm] loaded version %s (build %s)", TONEARM_VERSION, TONEARM_BUILD_REV);
 	return true;
 }
 

@@ -23,7 +23,7 @@ public:
 	bool init(const char *effectPath); // call inside graphics context
 	// `video` is the animated artwork frame for Video ops, already cropped to the
 	// artwork box; Video ops are skipped when it is null.
-	void render(const std::vector<DrawOp> &ops, gs_texture_t *video = nullptr);
+	void render(const std::vector<DrawOp> &ops, gs_texture_t *video = nullptr, bool videoNeedsSrgbEncode = false);
 	void releaseAll();                  // call inside graphics context
 
 	size_t textureCount() const { return textures_.size(); }
@@ -37,12 +37,13 @@ private:
 	gs_texture_t *textureFor(const DrawOp &op);
 	void drawImage(const DrawOp &op, gs_texture_t *tex);
 	void drawRoundRect(const DrawOp &op);
-	void drawVideo(const DrawOp &op, gs_texture_t *tex);
+	void drawVideo(const DrawOp &op, gs_texture_t *tex, bool needsSrgbEncode);
 	void collect();
 
 	gs_effect_t *effect_ = nullptr;
 	gs_technique_t *techLayer_ = nullptr, *techRect_ = nullptr, *techVideo_ = nullptr;
-	gs_eparam_t *pVRadius_ = nullptr, *pVClip_ = nullptr, *pVClipRadius_ = nullptr, *pVFeather_ = nullptr;
+	gs_eparam_t *pVRadius_ = nullptr, *pVClip_ = nullptr, *pVClipRadius_ = nullptr, *pVFeather_ = nullptr,
+		  *pVideoNeedsSrgbEncode_ = nullptr;
 	gs_eparam_t *pImage_ = nullptr, *pOpacity_ = nullptr, *pDst_ = nullptr, *pClip_ = nullptr, *pFade_ = nullptr,
 		    *pUseClip_ = nullptr, *pColor_ = nullptr, *pRectSize_ = nullptr, *pHalf_ = nullptr, *pRadius_ = nullptr,
 		    *pSoftness_ = nullptr;

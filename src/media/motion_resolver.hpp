@@ -55,7 +55,8 @@ public:
 	using Deliver = std::function<void(uint64_t serial, const std::optional<MotionAsset> &asset)>;
 
 	MotionResolver(std::unique_ptr<MotionSource> source, Deliver deliver,
-		       std::chrono::milliseconds negativeTtl = std::chrono::seconds(30));
+		       std::chrono::milliseconds negativeTtl = std::chrono::seconds(30),
+		       std::chrono::milliseconds positiveTtl = std::chrono::minutes(20));
 	~MotionResolver(); // cancels and joins
 
 	MotionResolver(const MotionResolver &) = delete;
@@ -76,6 +77,7 @@ private:
 	std::unique_ptr<MotionSource> source_;
 	Deliver deliver_;
 	std::chrono::milliseconds negativeTtl_;
+	std::chrono::milliseconds positiveTtl_;
 
 	std::mutex mutex_;
 	std::condition_variable cv_;

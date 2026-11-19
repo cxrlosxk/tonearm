@@ -6,11 +6,11 @@ A now-playing overlay for OBS Studio on Windows. Tonearm reads what Apple Music,
 
 ![A track change in each preset](docs/media/demo.gif)
 
-> **Status: 0.1.0, pre-release.** The rendering, layouts, settings and OBS integration are tested inside OBS on Linux, and the Windows build compiles and passes its unit tests in CI. The Windows media connection (SMTC) has not yet been run with real players. See [what has been verified](docs/testing.md) before relying on it for a stream.
+> **Status: v0.2.0 experimental release candidate.** Tonearm's Windows now-playing and genuine Apple Music animated-artwork integration have been exercised with real playback on a user's PC. The Windows and Linux CI pipelines check compilation and core tests; Windows CI also verifies real motion-video downloads and persistent album-cache reuse. Full smoothness and hardware-decoder performance must still be checked on each user's OBS configuration before a stable release.
 
 ## What it does
 
-- **Finds your music automatically.** Tonearm listens to the Windows media controls, the same feed that drives the volume flyout and lock screen. Apple Music, Spotify, TIDAL, Deezer, Amazon Music, foobar2000, MusicBee, VLC and Media Player all report there. No accounts, API keys, browser sources or web services are involved.
+- **Finds your music automatically.** Tonearm listens to the Windows media controls, the same feed that drives the volume flyout and lock screen. Apple Music, Spotify, TIDAL, Deezer, Amazon Music, foobar2000, MusicBee, VLC and Media Player all report there. No accounts or API keys are needed for ordinary now-playing metadata. The optional experimental **online animated artwork** feature uses a third-party lookup service.
 - **Four presets that differ in more than color.** Glass, Minimal, Neon and Editorial each have their own typography, surface treatment and motion.
 - **Four layouts.** Compact and expanded horizontal bars, a square card and a vertical card. Each one rearranges its content to fit the size you give it.
 - **Colors from the artwork.** The accent and background tint come from the album art. Text and accent colors are checked against the actual background and adjusted to stay readable.
@@ -54,7 +54,7 @@ To remove it, delete those two items again. [Getting started](docs/getting-start
 
 ![Tonearm settings with live preview](docs/media/settings.webp)
 
-Settings are grouped into Look, Surface, Color, Typography, Motion, Playback states, Music sources and Preset files, and the OBS properties window previews every change live. Switch on **Show sample tracks when nothing is playing** while you design the scene, then switch it off before going live. Every option is described in the [settings reference](docs/settings.md). An experimental **Animated artwork** group can replace the cover with a looping video from a folder you choose ([details](docs/animated-artwork.md)).
+Settings are grouped into Look, Surface, Color, Typography, Motion, Playback states, Music sources and Preset files, and the OBS properties window previews every change live. Switch on **Show sample tracks when nothing is playing** while you design the scene, then switch it off before going live. Every option is described in the [settings reference](docs/settings.md). An experimental **Animated artwork** group can automatically display genuine Apple Music motion HLS artwork on Windows through a third-party API, or play locally supplied video files. Smart quality and local album caching reduce latency and GPU load ([details](docs/animated-artwork.md)).
 
 ## How it compares
 
@@ -82,7 +82,7 @@ These are deliberate or come from what Windows provides. They are explained in m
 - **Artwork resolution is up to the player.** Some players hand Windows a small thumbnail. Tonearm upscales it smoothly, but it can look soft on large layouts.
 - **Apple Music combines artist and album** into one field (`Artist — Album`). Tonearm splits it back apart, which can misfire if an artist name itself contains ` — `.
 - **No playback controls.** Tonearm displays what's playing; it doesn't play, pause or skip.
-- **Animated artwork comes from your own files.** The experimental animated artwork option plays videos from a local folder. Apple Music's motion artwork isn't fetched, because the only known way to get it signs in with the Apple Music web player's private token. See [Animated artwork](docs/animated-artwork.md).
+- **Animated artwork is experimental.** On Windows, enabling the feature with a blank local-folder field queries an unofficial third-party artwork service for genuine Apple Music motion HLS streams. Availability is not guaranteed; artist and album metadata are sent to that service when an album isn't already cached locally. Set a folder to use local files only. See [Animated artwork](docs/animated-artwork.md).
 - **Windows only for live data.** Linux (MPRIS) and macOS support are not written yet.
 
 ## Building from source

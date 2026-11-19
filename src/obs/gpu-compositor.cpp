@@ -50,6 +50,7 @@ bool GpuCompositor::init(const char *effectPath)
 	pVClip_ = gs_effect_get_param_by_name(effect_, "v_clip");
 	pVClipRadius_ = gs_effect_get_param_by_name(effect_, "v_clip_radius");
 	pVFeather_ = gs_effect_get_param_by_name(effect_, "v_feather");
+	pVideoNeedsSrgbEncode_ = gs_effect_get_param_by_name(effect_, "video_needs_srgb_encode");
 	return techLayer_ && techRect_;
 }
 
@@ -155,12 +156,14 @@ void GpuCompositor::drawRoundRect(const DrawOp &op)
 	gs_matrix_pop();
 }
 
-void GpuCompositor::drawVideo(const DrawOp &op, gs_texture_t *tex)
+void GpuCompositor::drawVideo(const DrawOp &op, gs_texture_t *tex, bool needsSrgbEncode)
 {
 	if (!techVideo_ || op.opacity <= 0.0f || op.dst.empty())
 		return;
 	gs_effect_set_texture(pImage_, tex);
 	gs_effect_set_float(pOpacity_, op.opacity);
+	if (pVideoNeedsSrgbEncode_)
+		gs_effect_set_float(pVideoNeedsSrgbEncode_, needsSrgbEncode ? 1.0f : 0.0f);
 	struct vec4 dst, clip;
 	vec4_set(&dst, op.dst.x, op.dst.y, op.dst.w, op.dst.h);
 	gs_effect_set_vec4(pDst_, &dst);
@@ -186,7 +189,7 @@ void GpuCompositor::drawVideo(const DrawOp &op, gs_texture_t *tex)
 	gs_matrix_pop();
 }
 
-void GpuCompositor::render(const std::vector<DrawOp> &ops, gs_texture_t *video)
+void GpuCompositor::render(const std::vector<DrawOp> &ops, gs_texture_t *video, bool videoNeedsSrgbEncode)
 {
 	++frame_;
 	if (!effect_)
@@ -206,7 +209,7 @@ void GpuCompositor::render(const std::vector<DrawOp> &ops, gs_texture_t *video)
 				drawImage(op, tex);
 		} else if (op.kind == DrawOp::Kind::Video) {
 			if (video)
-				drawVideo(op, video);
+				drawVideo(op, video, videoNeedsSrgbEncode);
 		} else {
 			drawRoundRect(op);
 		}

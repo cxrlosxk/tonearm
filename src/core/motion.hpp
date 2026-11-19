@@ -19,6 +19,14 @@ namespace tonearm {
 // True when the style asks for animated artwork and nothing overrides it.
 bool wantsMotion(const Style &s);
 
+// Smart uses an efficient codec for compact artwork cards, preserving full
+// HEVC resolution whenever the artwork is large enough to benefit visually.
+MotionQuality effectiveMotionQuality(MotionQuality selection, float artworkMaxDimension);
+
+// Whether another video frame should be copied into the OBS overlay texture.
+// Deliberately supports 60 FPS source media without skipping every other frame.
+bool shouldCaptureMotionFrame(double currentSec, double previousSec, double maxFps = 60.0);
+
 // Lowercase, accent-folded, punctuation-free form used for comparisons.
 std::string normalizeName(const std::string &s);
 
@@ -47,6 +55,7 @@ struct MotionAsset {
 struct MotionQuery {
 	std::string artist, albumArtist, album, title;
 	MotionShape preferred = MotionShape::Square;
+	MotionQuality quality = MotionQuality::Maximum;
 };
 
 // Region of a w x h video frame that fills a dstW x dstH box without distortion

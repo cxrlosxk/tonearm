@@ -164,7 +164,9 @@ struct TonearmSource {
 
 		// Animated artwork follows real players only, never the sample track.
 		const bool real = idx >= 0;
-		motion.tick(real ? session : nullptr, showing, motionShape());
+		const auto &motionLayers = scene->currentLayers();
+		const Rect motionBox = motionLayers ? motionLayers->videoMask.box : Rect{};
+		motion.tick(real ? session : nullptr, showing, motionShape(), std::max(motionBox.w, motionBox.h));
 
 		SceneInput in;
 		in.provider = snap->state;
@@ -198,7 +200,7 @@ struct TonearmSource {
 			video = motion.prepare(ops, layers ? layers->videoMask.box : Rect{}, t);
 		}
 		if (!ops.empty())
-			gpu.render(ops, video);
+			gpu.render(ops, video, motion.videoNeedsSrgbEncode());
 	}
 
 	obs_properties_t *properties()

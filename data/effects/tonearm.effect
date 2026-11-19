@@ -23,6 +23,7 @@ uniform float v_radius;      // artwork corner radius
 uniform float4 v_clip;       // card rect: x0, y0, x1, y1
 uniform float v_clip_radius;
 uniform float2 v_feather;    // edge (0 none, 1 right, 2 bottom), width in px
+uniform float video_needs_srgb_encode; // 1: linear 16-bit source; 0: already sRGB 8-bit source
 
 sampler_state linear_clamp {
 	Filter   = Linear;
@@ -86,6 +87,19 @@ float coverage_round_rect(float2 p, float2 center, float2 h, float r)
 	return saturate(0.5 - sd_round_rect(p - center, h, rr));
 }
 
+// OBS FFmpeg's 8-bit SDR (e.g. NV12/H.264) path already delivers sRGB
+// encoded RGB; 10-bit/16-bit linear render paths may require transfer encoding
+// when Tonearm composites into the sRGB authored layers with framebuffer sRGB off.
+// Never apply this transfer unconditionally: it double-encodes 8-bit artwork
+// and washes out colors, especially in Smart (H.264) video mode.
+float3 VideoLinearToSrgb(float3 linearValue)
+{
+	float3 x = saturate(linearValue);
+	float3 low = 12.92 * x;
+	float3 high = 1.055 * pow(x, float3(1.0 / 2.4, 1.0 / 2.4, 1.0 / 2.4)) - 0.055;
+	return lerp(low, high, step(float3(0.0031308, 0.0031308, 0.0031308), x));
+}
+
 // Mirrors videoCoverage() in src/core/compositor_cpu.cpp.
 float4 PSVideo(VertData v_in) : TARGET
 {
@@ -100,6 +114,10 @@ float4 PSVideo(VertData v_in) : TARGET
 		a *= t * t * (3.0 - 2.0 * t);
 	}
 	float4 c = image.Sample(linear_clamp, v_in.uv);
+	// The video source's actual OBS color space decides whether encoding is
+	// needed. 8-bit sRGB video must stay untouched; high-precision linear
+	// video is encoded exactly once for this sRGB compositor.
+	c.rgb = lerp(c.rgb, VideoLinearToSrgb(c.rgb), video_needs_srgb_encode);
 	c.rgb = lerp(c.rgb, color.rgb, color.a); // paused dim: tint toward the card tone
 	c.rgb *= c.a; // video frames are straight alpha (normally opaque)
 	return c * (a * opacity);

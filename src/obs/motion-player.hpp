@@ -6,8 +6,8 @@
 // Decoding is delegated to OBS's own media source ("ffmpeg_source"), created as a
 // private child: it brings FFmpeg, hardware decoding, HLS, looping and frame timing,
 // and decodes each video once no matter how many times Tonearm is drawn. Tonearm
-// copies the current frame, cropped to the artwork box and at the box's size, into
-// one reusable texture at most 30 times a second, and draws it with its own mask.
+// copies the current frame, cropped and supersampled for the artwork box, into
+// one reusable texture at most 60 times a second (never exceeding OBS's draw cadence).
 //
 // Nothing here exists while the feature is off: no child source, no resolver thread,
 // no disk or network access.
@@ -19,6 +19,7 @@
 #include <obs.h>
 
 #include <atomic>
+#include <chrono>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -37,7 +38,7 @@ public:
 	void configure(const Style &style);
 
 	// Graphics thread, every tick, also while hidden. `session` may be null.
-	void tick(const MediaSession *session, bool showing, MotionShape preferred);
+	void tick(const MediaSession *session, bool showing, MotionShape preferred, float artworkSize = 0.0f);
 
 	// Graphics thread: what the scene should know this frame.
 	MotionFrame frame() const;
@@ -47,6 +48,9 @@ public:
 	gs_texture_t *prepare(const std::vector<DrawOp> &ops, const Rect &box, double t);
 
 	bool enabled() const { return enabled_.load(); }
+	// Graphics-thread only. OBS async video color format, not the user's
+	// quality preference, determines whether the shader needs sRGB encoding.
+	bool videoNeedsSrgbEncode() const { return videoNeedsSrgbEncode_; }
 
 private:
 	void teardown();
@@ -55,6 +59,8 @@ private:
 
 	// Configuration (UI thread)
 	std::string folder_;
+	std::atomic<MotionQuality> quality_{MotionQuality::Smart};
+	std::atomic<MotionQuality> effectiveQuality_{MotionQuality::Balanced};
 	MotionPause pause_ = MotionPause::WithMusic;
 	std::atomic<bool> enabled_{false};
 	std::atomic<bool> pauseWithMusic_{true};
@@ -67,6 +73,7 @@ private:
 	std::string wantedIdentity_;
 	std::string loadedIdentity_; // identity whose video is loaded in the child
 	std::string loadedPath_;
+	std::chrono::steady_clock::time_point lastMissAt_{}; // guarded by mutex_, bounded retry for failed lookups
 	std::atomic<uint64_t> loadGeneration_{0};
 
 	// Graphics thread only
@@ -74,10 +81,19 @@ private:
 	uint64_t serial_ = 0;
 	bool appliedPaused_ = false;
 	uint64_t appliedGeneration_ = ~0ull;
+	std::chrono::steady_clock::time_point lastRestartAt_{};
+	std::chrono::steady_clock::time_point lastDiagnosticsAt_{};
+	std::chrono::steady_clock::time_point lastPlaybackProgressAt_{};
+	int64_t lastObservedMediaTime_ = -1;
+	uint64_t lastObservedGeneration_ = ~0ull;
 	gs_texrender_t *texrender_ = nullptr;
 	double lastCapture_ = -1;
 	uint32_t texW_ = 0, texH_ = 0;
 	bool haveTexture_ = false;
+	bool videoNeedsSrgbEncode_ = false;
+	uint64_t loggedTransferGeneration_ = ~0ull;
+	double captureReportStart_ = -1.0;
+	uint32_t capturedFramesInWindow_ = 0;
 	uint64_t capturedGeneration_ = ~0ull;
 };
 
