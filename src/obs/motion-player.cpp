@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "motion-player.hpp"
+#include "remote-motion-source.hpp"
 
 #include <obs-module.h>
 #include <graphics/vec4.h>
@@ -47,7 +48,7 @@ void MotionPlayer::teardown()
 
 void MotionPlayer::configure(const Style &style)
 {
-	const bool want = wantsMotion(style) && !style.motionFolder.empty();
+	const bool want = wantsMotion(style);
 	pauseWithMusic_ = style.motionPause == MotionPause::WithMusic;
 	if (want == enabled_.load() && (!want || style.motionFolder == folder_))
 		return;
@@ -60,6 +61,7 @@ void MotionPlayer::configure(const Style &style)
 	obs_data_t *settings = obs_data_create();
 	obs_data_set_bool(settings, "is_local_file", true);
 	obs_data_set_string(settings, "local_file", "");
+	obs_data_set_string(settings, "input", "");
 	obs_data_set_bool(settings, "looping", true);
 	obs_data_set_bool(settings, "restart_on_activate", false);
 	obs_data_set_bool(settings, "close_when_inactive", false);
@@ -74,7 +76,14 @@ void MotionPlayer::configure(const Style &style)
 	}
 	obs_source_set_muted(child, true); // motion artwork is silent; never feed the mixer
 
-	auto resolver = std::make_unique<MotionResolver>(std::make_unique<LocalFolderSource>(folder_),
+	std::unique_ptr<MotionSource> motionSource;
+#ifdef _WIN32
+	if (folder_.empty())
+		motionSource = std::make_unique<RemoteArtworkApiSource>();
+#endif
+	if (!motionSource)
+		motionSource = std::make_unique<LocalFolderSource>(folder_);
+	auto resolver = std::make_unique<MotionResolver>(std::move(motionSource),
 							 [this](uint64_t serial, const std::optional<MotionAsset> &asset) { deliver(serial, asset); });
 	{
 		std::lock_guard<std::mutex> lock(mutex_);
@@ -83,7 +92,7 @@ void MotionPlayer::configure(const Style &style)
 	}
 	requestedKey_.clear(); // graphics thread re-requests the current track
 	enabled_ = true;
-	blog(LOG_INFO, "[tonearm] animated artwork on (local library)");
+	blog(LOG_INFO, "[tonearm] animated artwork on (%s)", folder_.empty() ? "online lookup" : "local folder");
 }
 
 obs_source_t *MotionPlayer::childRef() const
@@ -127,7 +136,10 @@ void MotionPlayer::deliver(uint64_t serial, const std::optional<MotionAsset> &as
 		// then open the new file. Opening may block briefly; this is not the graphics thread.
 		obs_source_output_video(child, nullptr);
 		obs_data_t *settings = obs_data_create();
-		obs_data_set_string(settings, "local_file", asset->location.c_str());
+		const bool remote = asset->location.rfind("https://", 0) == 0;
+		obs_data_set_bool(settings, "is_local_file", !remote);
+		obs_data_set_string(settings, "local_file", remote ? "" : asset->location.c_str());
+		obs_data_set_string(settings, "input", remote ? asset->location.c_str() : "");
 		obs_source_update(child, settings);
 		obs_data_release(settings);
 		std::lock_guard<std::mutex> lock(mutex_);
