@@ -69,6 +69,7 @@ private:
 	std::string wantedIdentity_;
 	std::string loadedIdentity_; // identity whose video is loaded in the child
 	std::string loadedPath_;
+	std::chrono::steady_clock::time_point lastMissAt_{}; // guarded by mutex_, bounded retry for failed lookups
 	std::atomic<uint64_t> loadGeneration_{0};
 
 	// Graphics thread only
@@ -78,6 +79,9 @@ private:
 	uint64_t appliedGeneration_ = ~0ull;
 	std::chrono::steady_clock::time_point lastRestartAt_{};
 	std::chrono::steady_clock::time_point lastDiagnosticsAt_{};
+	std::chrono::steady_clock::time_point lastPlaybackProgressAt_{};
+	int64_t lastObservedMediaTime_ = -1;
+	uint64_t lastObservedGeneration_ = ~0ull;
 	gs_texrender_t *texrender_ = nullptr;
 	double lastCapture_ = -1;
 	uint32_t texW_ = 0, texH_ = 0;
