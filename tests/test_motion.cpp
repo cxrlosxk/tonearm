@@ -164,6 +164,16 @@ TEST("motion: names with dashes, shape tags and unsupported files")
 	CHECK(!find(lib, "Lorde", "Solar Power"));
 }
 
+TEST("motion: Smart chooses high-quality efficient video for compact OBS artwork")
+{
+	CHECK(effectiveMotionQuality(MotionQuality::Smart, 200) == MotionQuality::Balanced);
+	CHECK(effectiveMotionQuality(MotionQuality::Smart, 400) == MotionQuality::Balanced);
+	CHECK(effectiveMotionQuality(MotionQuality::Smart, 540) == MotionQuality::Maximum);
+	CHECK(effectiveMotionQuality(MotionQuality::Smart, 800) == MotionQuality::Maximum);
+	CHECK(effectiveMotionQuality(MotionQuality::Maximum, 150) == MotionQuality::Maximum);
+	CHECK(effectiveMotionQuality(MotionQuality::Balanced, 1500) == MotionQuality::Balanced);
+}
+
 TEST("motion: cover crop fills the box without distortion")
 {
 	CropRect c = coverCrop(1080, 1440, 300, 300); // portrait video into a square box
