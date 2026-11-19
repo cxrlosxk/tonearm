@@ -9,6 +9,13 @@
 
 namespace tonearm {
 
+MotionQuality effectiveMotionQuality(MotionQuality selection, float artworkMaxDimension)
+{
+	if (selection != MotionQuality::Smart)
+		return selection;
+	return artworkMaxDimension >= 540.0f ? MotionQuality::Maximum : MotionQuality::Balanced;
+}
+
 bool wantsMotion(const Style &s)
 {
 	return s.artworkMode == ArtworkMode::AnimatedWhenAvailable && !s.reducedMotion && s.showArtwork;
