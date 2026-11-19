@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -133,6 +134,100 @@ std::string getArtworkJson(const std::string &artist, const std::string &album,
 				 "&album=" + percentEncode(album);
 	return getJson(L"artwork.m8tec.top", path, cancelled, responseStatus);
 }
+
+// The service's artist/album search has a long-lived negative cache and may
+// incorrectly return 404 for real albums. Public iTunes Search can identify
+// their catalog IDs without any Apple Music session credentials; the independent
+// artwork service also exposes an album-URL lookup route.
+std::optional<MotionAsset> resolveWithCatalogId(const MotionQuery &q, const std::atomic<bool> &cancelled)
+{
+	struct Candidate {
+		std::uint64_t id;
+		int priority;
+	};
+	std::vector<Candidate> candidates;
+	auto scanItunes = [&](const std::string &album) {
+		const std::string term = q.artist + " " + album;
+		const std::string path = "/search?term=" + percentEncode(term) + "&entity=album&country=US&limit=25";
+		DWORD status = 0;
+		const std::string jsonText = getJson(L"itunes.apple.com", path, cancelled, &status);
+		if (status != 200 || jsonText.empty() || cancelled)
+			return;
+		obs_data_t *root = obs_data_create_from_json(jsonText.c_str());
+		if (!root)
+			return;
+		obs_data_array_t *items = obs_data_get_array(root, "results");
+		if (items) {
+			const size_t n = obs_data_array_count(items);
+			for (size_t i = 0; i < n; ++i) {
+				obs_data_t *item = obs_data_array_item(items, i);
+				if (!item)
+					continue;
+				const std::string artist = obs_data_get_string(item, "artistName");
+				const std::string title = obs_data_get_string(item, "collectionName");
+				const auto rawId = obs_data_get_int(item, "collectionId");
+				obs_data_release(item);
+				if (rawId <= 0 || !catalogArtistMatches(q, artist) ||
+				    !compatibleMotionAlbumTitle(q.album, title))
+					continue;
+				const int priority = albumKey(q.album) == albumKey(title) ? 0 : 1;
+				const auto id = static_cast<std::uint64_t>(rawId);
+				if (std::find_if(candidates.begin(), candidates.end(),
+						 [&](const Candidate &c) { return c.id == id; }) == candidates.end())
+					candidates.push_back({id, priority});
+			}
+			obs_data_array_release(items);
+		}
+		obs_data_release(root);
+	};
+
+	scanItunes(q.album);
+	const std::string base = motionBaseAlbumQuery(q.album);
+	if (candidates.empty() && !base.empty() && !cancelled)
+		scanItunes(base);
+	std::stable_sort(candidates.begin(), candidates.end(),
+			 [](const Candidate &a, const Candidate &b) { return a.priority < b.priority; });
+
+	// Try a handful of matching catalog releases, never a fuzzy first hit.
+	// Verify the API's actual returned artist + album again before using media.
+	size_t lookedUp = 0;
+	for (const auto &candidate : candidates) {
+		if (cancelled || ++lookedUp > 4)
+			break;
+		const std::string publicUrl = "https://music.apple.com/album/" + std::to_string(candidate.id);
+		const std::string path = "/api/v1/artwork/url?url=" + percentEncode(publicUrl);
+		DWORD status = 0;
+		const auto body = getJson(L"artwork.m8tec.top", path, cancelled, &status);
+		if (cancelled || status == 429 || status == 503 || status == 0)
+			break;
+		if (body.empty())
+			continue;
+		obs_data_t *json = obs_data_create_from_json(body.c_str());
+		if (!json)
+			continue;
+		const std::string foundArtist = obs_data_get_string(json, "artist");
+		const std::string foundAlbum = obs_data_get_string(json, "album");
+		const std::string square = obs_data_get_string(json, "url");
+		const std::string tall = obs_data_get_string(json, "url_tall");
+		obs_data_release(json);
+
+		if (!catalogArtistMatches(q, foundArtist) ||
+		    !compatibleMotionAlbumTitle(q.album, foundAlbum))
+			continue;
+		const bool portrait = q.preferred == MotionShape::Portrait;
+		const std::string chosen = portrait && trustedVideoUrl(tall) ? tall :
+					   trustedVideoUrl(square) ? square : trustedVideoUrl(tall) ? tall : "";
+		if (chosen.empty())
+			continue;
+		auto cached = cacheMotionHls(chosen, cancelled, q.quality);
+		if (cached) {
+			blog(LOG_INFO, "[tonearm] animated artwork found via public album ID fallback");
+			return MotionAsset{*cached, chosen == tall ? MotionShape::Portrait : MotionShape::Square};
+		}
+		break; // Avoid downloading the same failed source multiple times.
+	}
+	return std::nullopt;
+}
 } // namespace
 
 std::optional<MotionAsset> RemoteArtworkApiSource::resolve(const MotionQuery &q, const std::atomic<bool> &cancelled)
@@ -216,7 +311,12 @@ std::optional<MotionAsset> RemoteArtworkApiSource::resolve(const MotionQuery &q,
 		// video URL. Don't repeatedly download the same large asset.
 		break;
 	}
-	blog(LOG_INFO, "[tonearm] no compatible animated artwork resolved (%zu queries); using still cover", checked);
+	if (!cancelled) {
+		const auto catalog = resolveWithCatalogId(q, cancelled);
+		if (catalog)
+			return catalog;
+	}
+	blog(LOG_INFO, "[tonearm] no compatible animated artwork resolved (%zu metadata queries); using still cover", checked);
 	return std::nullopt;
 }
 
