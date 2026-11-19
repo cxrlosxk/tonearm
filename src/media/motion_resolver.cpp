@@ -76,7 +76,14 @@ MotionResolver::~MotionResolver()
 
 std::string MotionResolver::cacheKey(const MotionQuery &q)
 {
-	return normalizeName(q.artist) + "\x1f" + normalizeName(q.albumArtist) + "\x1f" + q.album + "\x1f" + (q.preferred == MotionShape::Portrait ? "p" : "s") + "\x1f" + (q.quality == MotionQuality::Maximum ? "max" : "balanced");
+	const std::string performer = q.albumArtist.empty() ? q.artist : q.albumArtist;
+	const AlbumKey album = albumKey(q.album);
+	std::string edition;
+	for (const auto &part : album.edition)
+		edition += part + ";";
+	return normalizeName(performer) + "\x1f" + album.base + "\x1f" + edition +
+	       "\x1f" + (q.preferred == MotionShape::Portrait ? "p" : "s") +
+	       "\x1f" + (q.quality == MotionQuality::Maximum ? "max" : "balanced");
 }
 
 void MotionResolver::request(uint64_t serial, const MotionQuery &q)
