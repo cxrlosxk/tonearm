@@ -30,4 +30,13 @@ std::optional<std::uint64_t> exactCatalogAlbumId(const MotionQuery &nowPlaying, 
 // The official album title must still be checked separately.
 bool catalogArtistMatches(const MotionQuery &nowPlaying, const std::string &catalogArtist);
 
+// The animated-artwork service can associate motion with the base edition.
+// Permit a missing/generic edition qualifier only when the complete base
+// album title matches. Two explicit conflicting editions must never match.
+bool compatibleMotionAlbumTitle(const std::string &requested, const std::string &returned);
+
+// One fallback search title, with a descriptive edition qualifier removed.
+// Returns "" for titles that do not have a safely removable qualifier.
+std::string motionBaseAlbumQuery(const std::string &album);
+
 } // namespace tonearm
