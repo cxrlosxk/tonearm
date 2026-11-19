@@ -96,6 +96,12 @@ jobs:
         working-directory: tonearm
         run: ctest --test-dir build -C RelWithDebInfo --output-on-failure
 
+      - name: Check experimental online artwork API (non-blocking)
+        continue-on-error: true
+        shell: pwsh
+        working-directory: tonearm
+        run: ./tests/online-motion-api-smoke.ps1
+
       - name: Package
         shell: pwsh
         working-directory: tonearm
