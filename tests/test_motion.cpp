@@ -164,6 +164,23 @@ TEST("motion: names with dashes, shape tags and unsupported files")
 	CHECK(!find(lib, "Lorde", "Solar Power"));
 }
 
+TEST("motion: capture schedule retains every 60 FPS animation frame")
+{
+	double previous = -1.0;
+	int captured = 0;
+	for (int i = 0; i < 120; ++i) {
+		const double t = i / 60.0;
+		if (previous < 0.0 || shouldCaptureMotionFrame(t, previous)) {
+			++captured;
+			previous = t;
+		}
+	}
+	CHECK(captured == 120);
+	CHECK(!shouldCaptureMotionFrame(0.010, 0.0));
+	CHECK(shouldCaptureMotionFrame(0.0166667, 0.0));
+	CHECK(shouldCaptureMotionFrame(0.0333333, 0.0));
+}
+
 TEST("motion: Smart chooses high-quality efficient video for compact OBS artwork")
 {
 	CHECK(effectiveMotionQuality(MotionQuality::Smart, 200) == MotionQuality::Balanced);
