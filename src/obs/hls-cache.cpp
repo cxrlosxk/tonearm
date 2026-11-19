@@ -241,6 +241,63 @@ bool save(const fs::path &path, const std::string &data)
 	return out.good();
 }
 
+// Apple's video-on-demand playlists commonly describe BYTE RANGES of a single
+// complete fragmented MP4: a small init segment followed by video fragments.
+// Reading that MP4 as an ordinary local file is more reliable than asking OBS's
+// HLS demuxer to juggle range requests and seeking across remote fragments.
+std::optional<std::string> cacheSingleMp4(const std::string &media, const std::string &playlistUrl,
+					  const fs::path &dir, const std::atomic<bool> &cancelled)
+{
+	const auto rows = lines(media);
+	if (media.find("#EXT-X-ENDLIST") == std::string::npos ||
+	    media.find("#EXT-X-KEY:") != std::string::npos)
+		return std::nullopt;
+
+	std::optional<std::string> sameFile;
+	size_t segments = 0;
+	bool byteranges = false;
+	for (const auto &row : rows) {
+		if (row.rfind("#EXT-X-MAP:", 0) == 0) {
+			const auto uri = quotedUri(row);
+			if (!uri)
+				return std::nullopt;
+			const auto full = absoluteUrl(playlistUrl, *uri);
+			if (!full)
+				return std::nullopt;
+			if (sameFile && *sameFile != *full)
+				return std::nullopt;
+			sameFile = *full;
+		} else if (row.rfind("#EXT-X-BYTERANGE:", 0) == 0) {
+			byteranges = true;
+		} else if (!row.empty() && row[0] != '#') {
+			const auto full = absoluteUrl(playlistUrl, row);
+			if (!full || (sameFile && *sameFile != *full))
+				return std::nullopt;
+			sameFile = *full;
+			++segments;
+		}
+	}
+	if (!sameFile || !byteranges || segments < 1 || segments > kMaxSegments ||
+	    extensionFor(*sameFile) != ".mp4")
+		return std::nullopt;
+
+	std::string mp4;
+	if (!fetch(*sameFile, kMaxEntireAlbum, mp4, cancelled)) {
+		cacheTrace("failed to download single Apple MP4");
+		return std::nullopt;
+	}
+	// fMP4 video starts with an ISO BMFF file-type box; do not cache HTML,
+	// an error response, or a random binary mislabeled as an MP4.
+	if (mp4.size() < 4096 || mp4.compare(4, 4, "ftyp") != 0) {
+		cacheTrace("single Apple MP4 response missing ftyp");
+		return std::nullopt;
+	}
+	if (!save(dir / L"artwork.mp4", mp4) || !save(dir / L".complete", "1"))
+		return std::nullopt;
+	cacheTrace("cached entire finite Apple MP4");
+	return utf8Path(dir / L"artwork.mp4");
+}
+
 std::optional<std::string> createCache(const std::string &media, const std::string &url, const fs::path &dir,
 				       const std::atomic<bool> &cancelled)
 {
@@ -341,9 +398,14 @@ std::optional<std::string> cacheMotionHls(const std::string &playlistUrl, const 
 
 	const auto key = cacheKey(playlistUrl);
 	const fs::path finished = root / key;
-	const fs::path dest = finished / L"artwork.m3u8";
-	if (fs::exists(finished / L".complete", ec) && fs::exists(dest, ec))
-		return utf8Path(dest);
+	const fs::path mp4Dest = finished / L"artwork.mp4";
+	const fs::path playlistDest = finished / L"artwork.m3u8";
+	if (fs::exists(finished / L".complete", ec)) {
+		if (fs::exists(mp4Dest, ec))
+			return utf8Path(mp4Dest);
+		if (fs::exists(playlistDest, ec))
+			return utf8Path(playlistDest);
+	}
 
 	const fs::path building = root / (key + L"-building");
 	fs::remove_all(building, ec);
@@ -377,11 +439,14 @@ std::optional<std::string> cacheMotionHls(const std::string &playlistUrl, const 
 		}
 		cacheTrace("H264 variant loaded");
 	}
-	if (!createCache(playlist, mediaUrl, building, cancelled)) {
-		cacheTrace("media segment staging failed");
-		return fail();
+	const auto nativeMp4 = cacheSingleMp4(playlist, mediaUrl, building, cancelled);
+	if (!nativeMp4) {
+		if (!createCache(playlist, mediaUrl, building, cancelled)) {
+			cacheTrace("media segment staging failed");
+			return fail();
+		}
+		cacheTrace("all video segments staged");
 	}
-	cacheTrace("all video segments staged");
 	fs::remove_all(finished, ec);
 	ec.clear();
 	fs::rename(building, finished, ec);
@@ -390,7 +455,7 @@ std::optional<std::string> cacheMotionHls(const std::string &playlistUrl, const 
 		return fail();
 	}
 	cacheTrace("complete cache available");
-	return utf8Path(dest);
+	return utf8Path(nativeMp4 ? (finished / L"artwork.mp4") : (finished / L"artwork.m3u8"));
 }
 
 } // namespace tonearm
