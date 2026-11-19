@@ -12,9 +12,15 @@ foreach ($q in $queries) {
     $endpoint = "https://artwork.m8tec.top/api/v1/artwork/search?artist=$artist&album=$album"
     try {
         $response = Invoke-RestMethod -Uri $endpoint -Method Get -TimeoutSec 20 -Headers @{Accept='application/json'}
-        if (($response.url -match '^https://') -or ($response.url_tall -match '^https://')) {
+        $hls = if ($response.url -match '^https://') { $response.url } else { $response.url_tall }
+        if ($hls -match '^https://') {
+            $manifest = (Invoke-WebRequest -Uri $hls -Method Get -TimeoutSec 20).Content
+            if (-not ($manifest -match '#EXTM3U')) {
+                throw 'Online artwork URL did not return an HLS manifest'
+            }
             Write-Host "Found genuine online HLS artwork for $($q.artist) — $($q.album)"
             Write-Host "Returned release identity: $($response.artist) — $($response.album)"
+            Write-Host "HLS playlist successfully downloaded from $(([uri]$hls).Host)"
             exit 0
         }
     } catch {
