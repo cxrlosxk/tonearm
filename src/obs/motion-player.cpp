@@ -299,7 +299,7 @@ gs_texture_t *MotionPlayer::prepare(const std::vector<DrawOp> &ops, const Rect &
 	// Cap the GPU capture to avoid excessive bandwidth on slower computers;
 	// this is a *downscale-only* cap, never an artificial upscale.
 	const CropRect crop = coverCrop(static_cast<int>(vw), static_cast<int>(vh), box.w, box.h);
-	constexpr float kMaxCaptureDimension = 1440.0f;
+	const float kMaxCaptureDimension = quality_.load() == MotionQuality::Maximum ? 2160.0f : 1080.0f;
 	const float captureScale = std::min(1.0f, kMaxCaptureDimension / std::max(crop.w, crop.h));
 	const uint32_t tw = std::max(1u, static_cast<uint32_t>(std::lround(crop.w * captureScale)));
 	const uint32_t th = std::max(1u, static_cast<uint32_t>(std::lround(crop.h * captureScale)));
