@@ -9,11 +9,19 @@ Planned as 0.2.0. Not released.
 ### Added
 
 - Animated artwork (experimental, off by default). It plays a looping video in place of the still cover, masked into all four presets and every layout. Videos come from a local folder named `Artist - Album.mp4` (add ` [tall]` for portrait). MP4, MOV, WebM, MKV and HLS, including fragmented-MP4 HLS, all decode through OBS's own media source. It falls back to the still cover whenever no video matches, the match is uncertain, or decoding fails. Reduce motion turns it off. See [docs/animated-artwork.md](docs/animated-artwork.md).
-- Settings: Artwork (static or animated), preferred orientation, behavior when music pauses, and the animated artwork folder.
+- Settings: Artwork (static or animated), preferred orientation, behavior when music pauses, optional local artwork folder, and Smart / Maximum / Balanced online motion quality.
+- Genuine Apple Music animated-artwork lookup through an opt-in unofficial third-party metadata API (no user credentials), with complete local MP4 caching and per-album persistent replay index.
+- Robust matching across albums and compatible edition aliases, album-ID fallback, stalled-decoder recovery, and adaptive rendering workload.
 
-### Not included
+### Fixed
 
-- Fetching Apple Music's own motion artwork. The only known method reuses the Apple Music web player's private sign-in token, so it isn't shipped. The reasons are in [docs/animated-artwork.md](docs/animated-artwork.md#why-tonearm-doesnt-fetch-apple-musics-videos).
+- Stop over-brightening already-sRGB animated video frames. OBS FFmpeg can deliver either ordinary 8-bit sRGB or higher-precision linear video; Tonearm now uses the child source's actual reported color space to apply transfer encoding only when required.
+- Explicit sRGB framebuffer-state handling while capturing the media source, so the transfer is not applied unpredictably across OBS rendering configurations.
+
+### Known limitations
+
+- The third-party motion-artwork service and its album catalog are unofficial; not every Apple Music album is guaranteed to return a video.
+- Playback performance on a particular Windows GPU and OBS configuration requires on-device validation. No claim of universal, zero-stutter playback is made.
 
 ## [0.1.0] - 2026-11-19
 
