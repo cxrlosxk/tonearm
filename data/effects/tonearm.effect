@@ -18,6 +18,12 @@ uniform float2 half_size;  // half extents of the shape
 uniform float radius;
 uniform float softness;
 
+// Video (animated artwork). The texture is already cropped to the artwork box.
+uniform float v_radius;      // artwork corner radius
+uniform float4 v_clip;       // card rect: x0, y0, x1, y1
+uniform float v_clip_radius;
+uniform float2 v_feather;    // edge (0 none, 1 right, 2 bottom), width in px
+
 sampler_state linear_clamp {
 	Filter   = Linear;
 	AddressU = Clamp;
@@ -72,6 +78,40 @@ float4 PSRoundRect(VertData v_in) : TARGET
 		a = saturate(0.5 - d);
 	}
 	return color * a;
+}
+
+float coverage_round_rect(float2 p, float2 center, float2 h, float r)
+{
+	float rr = min(r, min(h.x, h.y));
+	return saturate(0.5 - sd_round_rect(p - center, h, rr));
+}
+
+// Mirrors videoCoverage() in src/core/compositor_cpu.cpp.
+float4 PSVideo(VertData v_in) : TARGET
+{
+	float2 p = dst_rect.xy + v_in.uv * dst_rect.zw;
+	float a = coverage_round_rect(p, dst_rect.xy + dst_rect.zw * 0.5, dst_rect.zw * 0.5, v_radius);
+	float2 c0 = v_clip.xy, c1 = v_clip.zw;
+	if (c1.x > c0.x && c1.y > c0.y)
+		a *= coverage_round_rect(p, (c0 + c1) * 0.5, (c1 - c0) * 0.5, v_clip_radius);
+	if (v_feather.x > 0.5 && v_feather.y > 0.0) {
+		float d = v_feather.x < 1.5 ? (dst_rect.x + dst_rect.z - p.x) : (dst_rect.y + dst_rect.w - p.y);
+		float t = saturate(d / v_feather.y);
+		a *= t * t * (3.0 - 2.0 * t);
+	}
+	float4 c = image.Sample(linear_clamp, v_in.uv);
+	c.rgb = lerp(c.rgb, color.rgb, color.a); // paused dim: tint toward the card tone
+	c.rgb *= c.a; // video frames are straight alpha (normally opaque)
+	return c * (a * opacity);
+}
+
+technique Video
+{
+	pass
+	{
+		vertex_shader = VSDefault(v_in);
+		pixel_shader  = PSVideo(v_in);
+	}
 }
 
 technique Layer

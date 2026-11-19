@@ -1,0 +1,84 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+#pragma once
+
+// Animated artwork playback for one Tonearm source.
+//
+// Decoding is delegated to OBS's own media source ("ffmpeg_source"), created as a
+// private child: it brings FFmpeg, hardware decoding, HLS, looping and frame timing,
+// and decodes each video once no matter how many times Tonearm is drawn. Tonearm
+// copies the current frame, cropped to the artwork box and at the box's size, into
+// one reusable texture at most 30 times a second, and draws it with its own mask.
+//
+// Nothing here exists while the feature is off: no child source, no resolver thread,
+// no disk or network access.
+
+#include "core/motion.hpp"
+#include "core/scene.hpp"
+#include "media/motion_resolver.hpp"
+
+#include <obs.h>
+
+#include <atomic>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <vector>
+
+namespace tonearm {
+
+class MotionPlayer {
+public:
+	MotionPlayer() = default;
+	~MotionPlayer();
+	MotionPlayer(const MotionPlayer &) = delete;
+	MotionPlayer &operator=(const MotionPlayer &) = delete;
+
+	// UI thread (source update). Creates or tears down everything as the style asks.
+	void configure(const Style &style);
+
+	// Graphics thread, every tick, also while hidden. `session` may be null.
+	void tick(const MediaSession *session, bool showing, MotionShape preferred);
+
+	// Graphics thread: what the scene should know this frame.
+	MotionFrame frame() const;
+
+	// Graphics thread, inside video_render: returns the frame texture for the Video op
+	// in `ops`, cropped to `box` (the artwork box at rest), or null.
+	gs_texture_t *prepare(const std::vector<DrawOp> &ops, const Rect &box, double t);
+
+	bool enabled() const { return enabled_.load(); }
+
+private:
+	void teardown();
+	void deliver(uint64_t serial, const std::optional<MotionAsset> &asset);
+	obs_source_t *childRef() const;
+
+	// Configuration (UI thread)
+	std::string folder_;
+	MotionPause pause_ = MotionPause::WithMusic;
+	std::atomic<bool> enabled_{false};
+	std::atomic<bool> pauseWithMusic_{true};
+
+	// Shared between threads
+	mutable std::mutex mutex_;
+	obs_source_t *child_ = nullptr;
+	std::unique_ptr<MotionResolver> resolver_;
+	uint64_t wantedSerial_ = 0;
+	std::string wantedIdentity_;
+	std::string loadedIdentity_; // identity whose video is loaded in the child
+	std::string loadedPath_;
+	std::atomic<uint64_t> loadGeneration_{0};
+
+	// Graphics thread only
+	std::string requestedKey_;
+	uint64_t serial_ = 0;
+	bool appliedPaused_ = false;
+	uint64_t appliedGeneration_ = ~0ull;
+	gs_texrender_t *texrender_ = nullptr;
+	double lastCapture_ = -1;
+	uint32_t texW_ = 0, texH_ = 0;
+	bool haveTexture_ = false;
+	uint64_t capturedGeneration_ = ~0ull;
+};
+
+} // namespace tonearm

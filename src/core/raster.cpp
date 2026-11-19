@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "raster.hpp"
 
+#include "motion.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -448,17 +450,56 @@ std::shared_ptr<LayerSet> rasterizeLayers(const Style &s, const DisplayContent &
 			set->surfaceTone = {t.r, t.g, t.b, 1};
 		}
 		applyRoundedMask(art, L.artRadius);
-		if (comp == Composition::Neon) {
-			strokeRoundRect(art, {0, 0, inLayer.w, inLayer.h}, L.artRadius, std::max(1.0f, u), Paint::solid(set->accent.withAlpha(0.55f)));
-		} else if (comp == Composition::Glass && !fill) {
-			strokeRoundRect(art, {0, 0, inLayer.w, inLayer.h}, L.artRadius, std::max(1.0f, u * 0.75f),
-					Paint::solid(Color{1, 1, 1, 0.12f}));
+		// With animated artwork on, the scrim and edge stroke are also kept as their own
+		// layer, drawn over the video so text contrast and the preset's edge survive.
+		const bool overlay = wantsMotion(s) && !set->placeholder;
+		Image ov;
+		if (overlay) {
+			ov = Image(static_cast<int>(inLayer.w), static_cast<int>(inLayer.h));
+			if (fill && L.scrimVisible) {
+				const Rect sc = localRect(L.scrim, a);
+				fillRoundRect(ov, {0, 0, inLayer.w, inLayer.h}, 0,
+					      Paint::linear({0, sc.y}, {0, sc.bottom()},
+							    {{0, set->palette.deep.withAlpha(0)},
+							     {0.55f, set->palette.deep.withAlpha(0.72f)},
+							     {1, set->palette.deep.withAlpha(0.94f)}}));
+				applyRoundedMask(ov, L.artRadius);
+			}
+		}
+		auto stroke = [&](Image &img) {
+			if (comp == Composition::Neon) {
+				strokeRoundRect(img, {0, 0, inLayer.w, inLayer.h}, L.artRadius, std::max(1.0f, u), Paint::solid(set->accent.withAlpha(0.55f)));
+			} else if (comp == Composition::Glass && !fill) {
+				strokeRoundRect(img, {0, 0, inLayer.w, inLayer.h}, L.artRadius, std::max(1.0f, u * 0.75f),
+						Paint::solid(Color{1, 1, 1, 0.12f}));
+			}
+		};
+		stroke(art);
+		if (overlay) {
+			stroke(ov);
+			set->artOverlay.image = share(std::move(ov));
+			set->artOverlay.id = nextImageId();
+			set->artOverlay.dst = {a.x, a.y, inLayer.w, inLayer.h};
+			set->artOverlay.box = a;
 		}
 		composite(layer, art, pad, pad);
 		set->art.image = share(std::move(layer));
 		set->art.id = nextImageId();
 		set->art.dst = {a.x - pad, a.y - pad, std::round(a.w) + pad * 2, std::round(a.h) + pad * 2};
 		set->art.box = a;
+	}
+	if (L.artVisible && !set->placeholder && (!artBaked || drawSurface)) {
+		auto &m = set->videoMask;
+		m.valid = true;
+		m.box = artBaked ? L.art : Rect{L.art.x, L.art.y, std::round(L.art.w), std::round(L.art.h)};
+		m.radius = artBaked ? 0.0f : L.artRadius;
+		m.clip = card;
+		m.clipRadius = L.cardRadius;
+		if (artBaked) {
+			const bool side = L.artPlacement == ArtPlacement::FullBleedLeft;
+			m.featherEdge = side ? 1 : 2;
+			m.feather = (side ? L.art.w : L.art.h) * 0.32f; // same hand-off as editorialSurface
+		}
 	}
 
 	// --- Colors that depend on the surface -----------------------------------

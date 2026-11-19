@@ -4,6 +4,17 @@ All notable changes to Tonearm are listed here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+Planned as 0.2.0. Not released.
+
+### Added
+
+- Animated artwork (experimental, off by default). It plays a looping video in place of the still cover, masked into all four presets and every layout. Videos come from a local folder named `Artist - Album.mp4` (add ` [tall]` for portrait). MP4, MOV, WebM, MKV and HLS, including fragmented-MP4 HLS, all decode through OBS's own media source. It falls back to the still cover whenever no video matches, the match is uncertain, or decoding fails. Reduce motion turns it off. See [docs/animated-artwork.md](docs/animated-artwork.md).
+- Settings: Artwork (static or animated), preferred orientation, behavior when music pauses, and the animated artwork folder.
+
+### Not included
+
+- Fetching Apple Music's own motion artwork. The only known method reuses the Apple Music web player's private sign-in token, so it isn't shipped. The reasons are in [docs/animated-artwork.md](docs/animated-artwork.md#why-tonearm-doesnt-fetch-apple-musics-videos).
+
 ## [0.1.0] - 2026-11-19
 
 First preview release. The Windows media connection has not yet been tested on real hardware; see [docs/testing.md](docs/testing.md).

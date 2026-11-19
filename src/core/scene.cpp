@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "scene.hpp"
+
+#include "motion.hpp"
 #include "animation.hpp"
 
 #include <algorithm>
@@ -144,6 +146,22 @@ void Scene::update(double t, const SceneInput &in)
 
 	const bool dimWanted = status_ == PlaybackStatus::Paused && style_.paused == PausedBehavior::Dim;
 	dim_ = approach(dim_, dimWanted ? 1.0f : 0.0f, static_cast<float>(dt), style_.reducedMotion ? 0.0f : 0.11f);
+
+	// Animated artwork: fades in over the still cover once the host has a frame for
+	// exactly the track on screen. A different track drops it at once (its still
+	// cover is underneath, so nothing flashes).
+	{
+		const std::string &shown = shownIdentity();
+		if (videoIdentity_ != shown) {
+			videoIdentity_ = shown;
+			videoMix_ = 0;
+		}
+		const bool wanted = wantsMotion(style_) && cur_.layers && cur_.layers->videoMask.valid && !cur_.layers->placeholder &&
+				    in.motion.ready && in.motion.identity == shown;
+		const float d = static_cast<float>(std::max(0.05, duration(durEmphasis)));
+		const float step = static_cast<float>(dt) / d;
+		videoMix_ = wanted ? std::min(1.0f, videoMix_ + step) : std::max(0.0f, videoMix_ - step * 1.6f);
+	}
 
 	// Progress: follow the timeline exactly, but glide across jumps (seeks, new tracks).
 	const float target = timelineKnown_ ? static_cast<float>(std::clamp(positionSec_ / durationSec_, 0.0, 1.0)) : 0.0f;
@@ -322,6 +340,35 @@ Vec2 Scene::shiftIn(int e, float p) const
 
 // --- Frame ------------------------------------------------------------------
 
+const std::string &Scene::shownIdentity() const
+{
+	static const std::string none;
+	return cur_.layers ? cur_.layers->identity : none;
+}
+
+void Scene::emitVideo(std::vector<DrawOp> &out, const LayerSet &set, float opacity, float scale) const
+{
+	const auto &m = set.videoMask;
+	if (!m.valid || opacity <= 0.002f)
+		return;
+	DrawOp op;
+	op.kind = DrawOp::Kind::Video;
+	op.color = Color{0, 0, 0, 0}; // no tint
+	Rect r = m.box;
+	if (scale != 1.0f) {
+		const float cx = r.cx(), cy = r.cy();
+		r = {cx + (r.x - cx) * scale, cy + (r.y - cy) * scale, r.w * scale, r.h * scale};
+	}
+	op.dst = transform(r);
+	op.radius = m.radius * scale * gScale_;
+	op.clipRect = transform(m.clip);
+	op.clipRadius = m.clipRadius * gScale_;
+	op.featherEdge = m.featherEdge;
+	op.feather = m.feather * scale * gScale_;
+	op.opacity = std::clamp(opacity * gOpacity_, 0.0f, 1.0f);
+	out.push_back(std::move(op));
+}
+
 Rect Scene::transform(const Rect &r) const
 {
 	if (!cur_.layers)
@@ -426,7 +473,26 @@ void Scene::buildFrame(double t, std::vector<DrawOp> &out)
 			const float from = 1.0f - (1.0f - ch.artScaleFrom) * std::clamp(style_.motionIntensity, 0.0f, 2.0f);
 			scale = from + (1.0f - from) * easing::enter(std::clamp((p - 0.1f) / 0.75f, 0.0f, 1.0f));
 		}
-		emitImage(out, C.art, (P ? elementOpacityIn(kArt, p) : 1.0f) * dimArt, {}, scale);
+		const float inOpacity = P ? elementOpacityIn(kArt, p) : 1.0f;
+		const float artOpacity = inOpacity * dimArt;
+		emitImage(out, C.art, artOpacity, {}, scale);
+		if (videoMix_ > 0.0f) {
+			const float mix = easing::inOut(videoMix_);
+			// The paused dim is applied to the video as a tint toward the card tone rather
+			// than as transparency, so the still cover underneath never shows through it.
+			// Editorial bakes its cover into the (never dimmed) surface, so it isn't tinted.
+			const bool baked = !C.art.valid();
+			const float videoOpacity = (baked ? (P ? elementOpacityIn(kSurface, p) : 1.0f) : inOpacity) * mix;
+			emitVideo(out, C, videoOpacity, scale);
+			if (!baked && !out.empty() && out.back().kind == DrawOp::Kind::Video) {
+				out.back().color = C.surfaceTone;
+				out.back().color.a = 1.0f - dimArt;
+			}
+			const size_t before = out.size();
+			emitImage(out, C.artOverlay, artOpacity * mix, {}, scale);
+			if (out.size() > before)
+				out.back().needsVideo = true;
+		}
 	}
 
 	// Text

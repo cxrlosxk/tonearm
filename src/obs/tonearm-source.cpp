@@ -4,6 +4,7 @@
 #include "core/demo.hpp"
 #include "gpu-compositor.hpp"
 #include "media-service.hpp"
+#include "motion-player.hpp"
 #include "raster-worker.hpp"
 #include "settings.hpp"
 
@@ -47,6 +48,7 @@ struct TonearmSource {
 	std::unique_ptr<Scene> scene;
 	std::unique_ptr<RasterWorker> worker;
 	GpuCompositor gpu;
+	MotionPlayer motion; // animated artwork; inert unless enabled
 	bool gpuTried = false;
 	std::vector<DrawOp> ops;
 	double t = 0;
@@ -84,6 +86,7 @@ struct TonearmSource {
 		SelectionPolicy p = policyFromSettings(settings);
 		width = static_cast<uint32_t>(s.width);
 		height = static_cast<uint32_t>(s.height);
+		motion.configure(s); // UI thread: creates or tears down the animated artwork player
 		std::lock_guard<std::mutex> lock(pendingMutex);
 		if (s.sampleWhenIdle && sampleTracks.empty()) {
 			// Generated here (UI thread) so the graphics thread never pays for it.
@@ -93,6 +96,13 @@ struct TonearmSource {
 		pendingStyle = std::move(s);
 		pendingPolicy = std::move(p);
 		hasPending = true;
+	}
+
+	MotionShape motionShape() const
+	{
+		const auto &layers = scene->currentLayers();
+		const Rect box = layers ? layers->videoMask.box : Rect{};
+		return preferredShape(style.motionOrientation, box.w, box.h);
 	}
 
 	const MediaSession *sampleSession(Clock::time_point now)
@@ -135,8 +145,11 @@ struct TonearmSource {
 
 		// Nothing to do while the source is not visible anywhere (keeps CPU at zero in game scenes
 		// that don't include the overlay). Media snapshots are still kept fresh by the provider.
-		if (!obs_source_showing(source) && !scene->visible())
+		const bool showing = obs_source_showing(source);
+		if (!showing && !scene->visible()) {
+			motion.tick(nullptr, false, MotionShape::Square); // pauses decoding while hidden
 			return;
+		}
 
 		const auto snap = MediaService::instance().snapshot();
 		const Clock::time_point now = Clock::now();
@@ -149,10 +162,15 @@ struct TonearmSource {
 		if (!style.sampleWhenIdle)
 			sampleIndex = -1;
 
+		// Animated artwork follows real players only, never the sample track.
+		const bool real = idx >= 0;
+		motion.tick(real ? session : nullptr, showing, motionShape());
+
 		SceneInput in;
 		in.provider = snap->state;
 		in.session = session;
 		in.now = now;
+		in.motion = motion.frame();
 
 		if (auto r = worker->takeLayers())
 			scene->provideLayers(r->key, std::move(r->set));
@@ -174,8 +192,13 @@ struct TonearmSource {
 			gpu.init(moduleFile("effects/tonearm.effect").c_str());
 		}
 		scene->buildFrame(t, ops);
+		gs_texture_t *video = nullptr;
+		if (motion.enabled()) {
+			const auto &layers = scene->currentLayers();
+			video = motion.prepare(ops, layers ? layers->videoMask.box : Rect{}, t);
+		}
 		if (!ops.empty())
-			gpu.render(ops);
+			gpu.render(ops, video);
 	}
 
 	obs_properties_t *properties()

@@ -20,6 +20,34 @@ This page says plainly what has been checked, how, and what still needs a Window
 
 Until the Windows rows are checked, treat the Windows build as a preview.
 
+## Animated artwork
+
+Status of the experimental animated artwork on this branch (planned for 0.2.0).
+
+| Area | Status | How |
+|---|---|---|
+| Release matching (editions, singles, remasters, similar titles, featured artists, ambiguity) | Verified | Unit tests in `tests/test_motion.cpp` |
+| Resolver: cache, negative cache, cancellation on rapid track changes, duplicate suppression, failing source, prompt shutdown | Verified | Unit tests; also run under ThreadSanitizer (no reports in Tonearm code) |
+| Masking in all 4 presets × 4 layouts: nothing outside the artwork changes, corners masked, Editorial feather, still cover when no frame | Verified | Unit tests with the CPU reference compositor |
+| Fade in, track change, decode loss, pause tint, Reduce motion, static mode, placeholders | Verified | Unit tests driving the real scene |
+| Playback inside OBS: MP4 (square), MP4 (portrait, cropped), fragmented-MP4 HLS with a Unicode file name | Verified on Linux | OBS 30.0.2, scripted player, screenshots through obs-websocket |
+| Fallback inside OBS: no file, corrupt file | Verified on Linux | Still cover shown; OBS logs `MP: Failed to open media` |
+| Seamless loop | Verified on Linux | 1,655 screenshots at about 28 per second over 60 s (around 10 loops of 4 s videos): no dark or dropped frames while a track played |
+| Hide and show, scene switches, 30 rapid create/delete cycles, switching the feature off, clean shutdown | Verified on Linux | No growth in threads; open video files close when the feature is switched off; `Number of memory leaks: 0` |
+| CPU cost | Measured on Linux, software rendering only | See [Animated artwork](animated-artwork.md#performance) |
+| Windows: build, unit tests, package | Run by CI | Not yet run in OBS on Windows |
+| Windows: hardware decoding, GPU load, encoder impact while gaming | Not yet measured | Needs a real PC |
+| Apple Music motion artwork retrieval | Not built | See [why](animated-artwork.md#why-tonearm-doesnt-fetch-apple-musics-videos) |
+
+### Windows check for animated artwork
+
+1. Make a folder with a short H.264 MP4 named after an album you play, such as `Artist - Album.mp4`, and a `[tall]` version if you want to try portrait.
+2. Set **Artwork** to *Animated artwork when available* and choose the folder. Play that album in Apple Music: the video fades in over the cover within about a second.
+3. Play an album without a file: the still cover stays. Skip between tracks quickly: no wrong video ever appears.
+4. Pause: the video dims and freezes. Turn on Reduce motion: the still cover returns.
+5. Check each preset (Glass, Minimal, Neon, Editorial) in a horizontal and a vertical layout.
+6. With a game running, compare OBS's *Stats* window (render time, skipped frames) and Task Manager GPU "Video Decode" with the feature on and off.
+
 ## Windows test plan
 
 Run in a portable OBS so an existing installation and its plugins stay untouched.

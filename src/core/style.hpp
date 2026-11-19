@@ -38,6 +38,9 @@ enum class TimeDisplay { Hidden, Elapsed, Remaining, Both };
 enum class PausedBehavior { Keep, Dim, HideAfterDelay };
 enum class IdleBehavior { Hide, ShowPlaceholder };
 enum class AccentMode { FromArtwork, Custom };
+enum class ArtworkMode { Static, AnimatedWhenAvailable };
+enum class MotionOrientation { Automatic, Square, Portrait };
+enum class MotionPause { WithMusic, KeepLooping };
 
 struct Style {
 	std::string presetId = "glass";
@@ -99,6 +102,12 @@ struct Style {
 	IdleBehavior idle = IdleBehavior::Hide;
 	std::string placeholderText = "Nothing playing";
 	bool sampleWhenIdle = false;              // show the sample track while configuring
+
+	// Animated artwork (experimental, off by default). Not part of a preset's look.
+	ArtworkMode artworkMode = ArtworkMode::Static;
+	MotionOrientation motionOrientation = MotionOrientation::Automatic;
+	MotionPause motionPause = MotionPause::WithMusic;
+	std::string motionFolder;                 // local motion artwork library
 
 	// Source canvas size in OBS pixels.
 	int width = 560;

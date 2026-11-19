@@ -54,7 +54,7 @@ To remove it, delete those two items again. [Getting started](docs/getting-start
 
 ![Tonearm settings with live preview](docs/media/settings.webp)
 
-Settings are grouped into Look, Surface, Color, Typography, Motion, Playback states, Music sources and Preset files, and the OBS properties window previews every change live. Switch on **Show sample tracks when nothing is playing** while you design the scene, then switch it off before going live. Every option is described in the [settings reference](docs/settings.md).
+Settings are grouped into Look, Surface, Color, Typography, Motion, Playback states, Music sources and Preset files, and the OBS properties window previews every change live. Switch on **Show sample tracks when nothing is playing** while you design the scene, then switch it off before going live. Every option is described in the [settings reference](docs/settings.md). An experimental **Animated artwork** group can replace the cover with a looping video from a folder you choose ([details](docs/animated-artwork.md)).
 
 ## How it compares
 
@@ -82,6 +82,7 @@ These are deliberate or come from what Windows provides. They are explained in m
 - **Artwork resolution is up to the player.** Some players hand Windows a small thumbnail. Tonearm upscales it smoothly, but it can look soft on large layouts.
 - **Apple Music combines artist and album** into one field (`Artist — Album`). Tonearm splits it back apart, which can misfire if an artist name itself contains ` — `.
 - **No playback controls.** Tonearm displays what's playing; it doesn't play, pause or skip.
+- **Animated artwork comes from your own files.** The experimental animated artwork option plays videos from a local folder. Apple Music's motion artwork isn't fetched, because the only known way to get it signs in with the Apple Music web player's private token. See [Animated artwork](docs/animated-artwork.md).
 - **Windows only for live data.** Linux (MPRIS) and macOS support are not written yet.
 
 ## Building from source
@@ -98,6 +99,7 @@ Windows needs Visual Studio 2022 with the Windows 10 or 11 SDK and a libobs SDK.
 
 - [Getting started](docs/getting-started.md)
 - [Settings reference](docs/settings.md)
+- [Animated artwork (experimental)](docs/animated-artwork.md)
 - [Troubleshooting and FAQ](docs/troubleshooting.md)
 - [Architecture](docs/architecture.md)
 - [Building](docs/building.md)

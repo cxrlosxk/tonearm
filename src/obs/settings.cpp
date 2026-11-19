@@ -139,6 +139,9 @@ bool onToggles(void *, obs_properties_t *props, obs_property_t *, obs_data_t *se
 	obs_property_set_visible(obs_properties_get(props, "hide_delay"), !strcmp(obs_data_get_string(settings, "paused_behavior"), "hide"));
 	obs_property_set_visible(obs_properties_get(props, "idle_text"), !strcmp(obs_data_get_string(settings, "idle_behavior"), "message"));
 	obs_property_set_visible(obs_properties_get(props, "marquee_speed"), obs_data_get_bool(settings, "marquee"));
+	const bool animated = !strcmp(obs_data_get_string(settings, "artwork_mode"), "animated");
+	for (const char *k : {"motion_orientation", "motion_pause", "motion_folder", "motion_note"})
+		obs_property_set_visible(obs_properties_get(props, k), animated);
 	const bool list = strcmp(obs_data_get_string(settings, "source_mode"), "auto") != 0;
 	obs_property_set_visible(obs_properties_get(props, "source_list"), list);
 	return true;
@@ -263,6 +266,10 @@ void settingsDefaults(obs_data_t *d)
 	obs_data_set_default_string(d, "idle_behavior", "hide");
 	obs_data_set_default_string(d, "idle_text", T_("Idle.DefaultText"));
 	obs_data_set_default_bool(d, "sample_when_idle", false);
+	obs_data_set_default_string(d, "artwork_mode", "static");
+	obs_data_set_default_string(d, "motion_orientation", "auto");
+	obs_data_set_default_string(d, "motion_pause", "with_music");
+	obs_data_set_default_string(d, "motion_folder", "");
 	obs_data_set_default_string(d, "source_mode", "auto");
 	obs_data_set_default_bool(d, "allow_browsers", false);
 }
@@ -325,6 +332,14 @@ Style styleFromSettings(obs_data_t *d)
 	s.idle = !strcmp(obs_data_get_string(d, "idle_behavior"), "message") ? IdleBehavior::ShowPlaceholder : IdleBehavior::Hide;
 	s.placeholderText = obs_data_get_string(d, "idle_text");
 	s.sampleWhenIdle = obs_data_get_bool(d, "sample_when_idle");
+
+	s.artworkMode = !strcmp(obs_data_get_string(d, "artwork_mode"), "animated") ? ArtworkMode::AnimatedWhenAvailable : ArtworkMode::Static;
+	const char *mo = obs_data_get_string(d, "motion_orientation");
+	s.motionOrientation = !strcmp(mo, "square") ? MotionOrientation::Square
+			      : !strcmp(mo, "portrait") ? MotionOrientation::Portrait
+							 : MotionOrientation::Automatic;
+	s.motionPause = !strcmp(obs_data_get_string(d, "motion_pause"), "loop") ? MotionPause::KeepLooping : MotionPause::WithMusic;
+	s.motionFolder = obs_data_get_string(d, "motion_folder");
 	return s;
 }
 
@@ -510,6 +525,19 @@ obs_properties_t *buildProperties(PropertiesContext *ctx)
 	p = obs_properties_add_int_slider(motion, "marquee_speed", T_("MarqueeSpeed"), 10, 160, 2);
 	obs_property_int_set_suffix(p, " px/s");
 	obs_properties_add_group(props, "group_motion", T_("Group.Motion"), OBS_GROUP_NORMAL, motion);
+
+	// --- Animated artwork (experimental) -------------------------------------
+	obs_properties_t *anim = obs_properties_create();
+	addList(anim, "artwork_mode", T_("ArtworkMode"), {{"static", "ArtworkMode.Static"}, {"animated", "ArtworkMode.Animated"}});
+	p = obs_properties_get(anim, "artwork_mode");
+	obs_property_set_long_description(p, T_("ArtworkMode.Tip"));
+	obs_property_set_modified_callback2(p, onToggles, ctx);
+	addList(anim, "motion_orientation", T_("MotionOrientation"),
+		{{"auto", "MotionOrientation.Auto"}, {"square", "MotionOrientation.Square"}, {"portrait", "MotionOrientation.Portrait"}});
+	addList(anim, "motion_pause", T_("MotionPause"), {{"with_music", "MotionPause.WithMusic"}, {"loop", "MotionPause.Loop"}});
+	obs_properties_add_path(anim, "motion_folder", T_("MotionFolder"), OBS_PATH_DIRECTORY, nullptr, nullptr);
+	obs_properties_add_text(anim, "motion_note", T_("MotionNote"), OBS_TEXT_INFO);
+	obs_properties_add_group(props, "group_animated", T_("Group.Animated"), OBS_GROUP_NORMAL, anim);
 
 	// --- Behavior -----------------------------------------------------------
 	obs_properties_t *behavior = obs_properties_create();
