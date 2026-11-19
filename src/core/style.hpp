@@ -40,6 +40,7 @@ enum class IdleBehavior { Hide, ShowPlaceholder };
 enum class AccentMode { FromArtwork, Custom };
 enum class ArtworkMode { Static, AnimatedWhenAvailable };
 enum class MotionOrientation { Automatic, Square, Portrait };
+enum class MotionQuality { Balanced, Maximum };
 enum class MotionPause { WithMusic, KeepLooping };
 
 struct Style {
@@ -106,6 +107,7 @@ struct Style {
 	// Animated artwork (experimental, off by default). Not part of a preset's look.
 	ArtworkMode artworkMode = ArtworkMode::Static;
 	MotionOrientation motionOrientation = MotionOrientation::Automatic;
+	MotionQuality motionQuality = MotionQuality::Maximum;
 	MotionPause motionPause = MotionPause::WithMusic;
 	std::string motionFolder;                 // local motion artwork library
 
