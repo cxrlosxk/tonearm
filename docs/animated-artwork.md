@@ -10,11 +10,11 @@ The feature is **off by default**. While it is off, Tonearm creates no media dec
 
 ## Automatic Apple Music artwork (experimental, Windows)
 
-When **Animated artwork when available** is selected and **Local artwork folder** is blank, Tonearm looks up the current artist/album/track in the independent public API at [artwork.m8tec.top](https://artwork.m8tec.top). Its response provides genuine Apple Music HLS artwork streams. For Apple's finite single-MP4 HLS playlists, Tonearm downloads the complete short original MP4 into a private per-user cache and asks OBS FFmpeg to loop that local video. The **Online motion quality** setting offers Maximum (up to 2160p HEVC, with fallback to lower compatible streams) or Balanced (up to 1080p H.264). Tonearm ignores HLS I-frame-only preview streams, which are not moving videos. Other unencrypted finite HLS layouts may be cached as local playlists. Tonearm doesn't synthesize animation.
+When **Animated artwork when available** is selected and **Local artwork folder** is blank, Tonearm looks up the current artist/album/track in the independent public API at [artwork.m8tec.top](https://artwork.m8tec.top). Its response provides genuine Apple Music HLS artwork streams. For Apple's finite single-MP4 HLS playlists, Tonearm downloads the complete short original MP4 into a private per-user cache and asks OBS FFmpeg to loop that local video. The **Online motion quality** setting offers **Smart** (recommended, H.264 up to 1080p for small overlays; 2160p for large cards), **Maximum** (up to 2160p HEVC, with compatible fallbacks), or **Balanced** (up to 1080p H.264). Tonearm ignores HLS I-frame-only preview streams, which are not moving videos. Other unencrypted finite HLS layouts may be cached as local playlists. Tonearm doesn't synthesize animation.
 
-The lookup sends **artist, album, and track title** to that third party. It does not transmit your Apple ID, Apple Music credentials, or listening history beyond the current lookup. Requests run off the graphics thread. For smooth playback, complete videos are cached in `%LOCALAPPDATA%\\Tonearm\\MotionCache` on Windows and reused; you can delete that folder while OBS is closed to reclaim space. Individual animations are limited to 100 MB, although the total cache may grow over time. The Maximum setting uses more storage, network bandwidth, and decode resources. Video frames retain native detail through the GPU capture (up to 2160 pixels for Maximum and 1080 pixels for Balanced) instead of being prematurely reduced to the overlay's display size. A failed lookup, ambiguous album, incomplete download, unsupported encryption, or unavailable service falls back to the ordinary still artwork.
+The lookup sends **artist and album** to that third party. It does not transmit your Apple ID, Apple Music credentials, or listening history beyond the current lookup. Requests run off the graphics thread. For smooth playback, complete videos are cached in `%LOCALAPPDATA%\\Tonearm\\MotionCache` on Windows and reused, with a persistent release index so repeat plays can skip online discovery entirely; you can delete that folder while OBS is closed to reclaim space. Individual animations are limited to 100 MB, although the total cache may grow over time. The Maximum setting uses more storage, network bandwidth, and decode resources. Smart keeps the original video sharp for its actual on-screen size while avoiding unnecessary 2160p HEVC decoding for small cards. The GPU capture uses bounded supersampling instead of copying every full 2160p frame for a small cover. A failed lookup, ambiguous album, incomplete download, unsupported encryption, or unavailable service falls back to the ordinary still artwork.
 
-This service is **unofficial**, can change, and may be rate-limited. It is not owned or operated by Apple or Tonearm. Only an exact normalized artist and album edition match is accepted, and video locations are limited to Apple CDN HTTPS hosts. Tonearm doesn't extract or store Apple web-player tokens.
+This service is **unofficial**, can change, and may be rate-limited. It is not owned or operated by Apple or Tonearm. Tonearm validates normalized artist and album identity, allowing limited safe base/deluxe edition aliases while rejecting conflicting editions. Motion-video URLs are restricted to Apple CDN HTTPS hosts. Tonearm doesn't extract or store Apple web-player tokens.
 
 ### Use your own local motion library instead
 
@@ -42,12 +42,12 @@ The settings are in **Animated artwork (Experimental)** in the source properties
 | Setting | What it does |
 |---|---|
 | **Artwork** | *Static artwork* (default) or *Animated artwork when available*. |
-| **Online motion quality** | *Maximum* for best available full-motion detail (up to 2160p HEVC), or *Balanced* for lower overhead (1080p H.264). |
+| **Online motion quality** | *Smart* (recommended for streaming), *Maximum* (2160p HEVC when available), or *Balanced* (1080p H.264). Existing sources with Maximum selected keep that setting until changed. |
 | **Preferred orientation** | *Automatic* uses portrait videos for tall artwork areas and square ones otherwise. *Square* and *Portrait* force a choice. If only one shape exists, it is used, center-cropped to fit. |
 | **When music pauses** | *Pause the animation* (default) freezes the current frame. *Keep looping* doesn't. |
 | **Local artwork folder** | Optional. Blank enables online automatic artwork lookup on Windows; a folder selects local-only video files. |
 
-**Reduce motion** in the Motion group always shows the still cover. There is no quality setting: Tonearm copies frames at the size the artwork is drawn, and never above the video's own resolution.
+**Reduce motion** in the Motion group always shows the still cover. Tonearm captures only the relevant cropped video region, with adaptive high-quality supersampling based on the artwork's actual display size.
 
 ## How it behaves
 
@@ -65,7 +65,7 @@ The settings are in **Animated artwork (Experimental)** in the source properties
 
 ### Matching rules
 
-A video is used only when the artist **and** the album match exactly after normalization. Normalization ignores case, accents, apostrophes and punctuation, and treats `&` as "and". Edition qualifiers must match too:
+An animation is used only after the artist and album identity have been validated. Normalization ignores case, accents, apostrophes and punctuation, and treats `&` as "and". A generic base-album video may be accepted for an edition when the artist and exact base title match, but two conflicting explicit editions are not interchangeable:
 
 - *Midnights* and *Midnights (3am Edition)* are different releases.
 - *Rumours* and *Rumours (Super Deluxe)* are different releases.
@@ -74,6 +74,23 @@ A video is used only when the artist **and** the album match exactly after norma
 - "Deluxe" and "Deluxe Edition" count as the same qualifier.
 
 Artist matching also accepts the album artist and the first artist of a credit like "A & B" or "A feat. B". If two different files claim the same release and shape, neither is used.
+
+## Cold starts, replay, and fast song switching
+
+The very first play of an uncached album can show a still cover while a real motion video is discovered and downloaded. That is expected: a complete 2160p motion video can be tens of megabytes. **Smart** reduces download and decoding work for small overlays. Tonearm writes a persistent album-to-local-video index after a successful download. Replaying that album then starts from disk without contacting the artwork service. Song changes within one release share the same resolver lookup instead of restarting a download for every featured performer. Distinct albums can now download concurrently without blocking one another behind a global cache mutex. An unsuccessful or rate-limited lookup keeps the still cover and is retried conservatively.
+
+If the cover is still static after an uncached album has played for 30 seconds, collect the current OBS log. Useful messages begin with `[tonearm] animated`, `[tonearm] motion lookup`, `[tonearm] motion playback`, or `[tonearm] no compatible animated`. A genuine missing asset from the third-party service is not the same as a stopped decoder.
+
+### Recommended pre-release validation
+
+1. With Smart selected, try an uncached song for 30 seconds, then replay it to confirm the persistent index is used.
+2. Play three tracks on one album in quick succession without restarting its animation.
+3. Change between two entirely different albums and confirm a stale previous album's frames are never shown.
+4. Keep one animated album playing for at least five minutes and monitor OBS Stats for render/encoding lag.
+5. Compare Smart and Maximum at the same on-screen card size, and test with two Tonearm sources visible.
+6. Stop and restart OBS to verify cache reuse survives a full application restart.
+
+The Windows CI suite covers compilation, core matching/resolver tests, and live Apple HLS download/album-index checks. It does **not** reproduce the actual GPU, Apple Music app, or OBS scene layout on every viewer's PC.
 
 ## Performance
 
@@ -91,8 +108,8 @@ Decoding that video alone takes about 7% of one core. The rest of the difference
 
 The design choices that keep the cost down:
 
-- Each video is decoded once, by OBS's own media source, however many times Tonearm is drawn.
-- Tonearm copies at most 30 frames a second, at the artwork's on-screen size, into one reused texture. Only the cropped part of the frame is copied.
+- Each Tonearm source creates one private OBS media decoder. A source is not decoded twice merely because its scene is rendered multiple times. Multiple separately configured Tonearm sources can each have their own decoder.
+- Tonearm copies at most 30 frames a second into one reused cropped texture. Smart picks the 1080p H.264 stream for small overlays while keeping high-quality supersampling for the actual display size.
 - No copies happen while the still cover is shown, and decoding is paused while the source is hidden.
 - File lookups run on their own thread, never on OBS's graphics or UI threads.
 
@@ -100,4 +117,4 @@ GPU load, encoder impact and hardware decoding on Windows still need measuring o
 
 ## Privacy and network
 
-With static artwork selected, Tonearm makes no motion-artwork network requests. With animated artwork selected and no local folder, Windows Tonearm sends the playing artist, album and track title to artwork.m8tec.top for HLS URL discovery. With a local folder set, Tonearm uses only local files.
+With static artwork selected, Tonearm makes no motion-artwork network requests. With animated artwork selected and no local folder, Windows Tonearm first checks its private album/video cache, and only sends the playing artist and album to artwork.m8tec.top for HLS URL discovery when no cached match exists. A public iTunes catalog-ID lookup is also used as a fallback when the service's name search fails. With a local folder set, Tonearm uses only local files.
