@@ -19,6 +19,10 @@ namespace tonearm {
 // True when the style asks for animated artwork and nothing overrides it.
 bool wantsMotion(const Style &s);
 
+// Smart uses an efficient codec for compact artwork cards, preserving full
+// HEVC resolution whenever the artwork is large enough to benefit visually.
+MotionQuality effectiveMotionQuality(MotionQuality selection, float artworkMaxDimension);
+
 // Lowercase, accent-folded, punctuation-free form used for comparisons.
 std::string normalizeName(const std::string &s);
 
