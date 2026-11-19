@@ -4,6 +4,7 @@ $ErrorActionPreference = 'Stop'
 $queries = @(
     @{ artist = 'Gorillaz'; album = 'Plastic Beach'; title = '' },
     @{ artist = 'Kelly Clarkson'; album = 'Wrapped in Red'; title = '' },
+    @{ artist = 'Ariana Grande'; album = 'Wicked: The Soundtrack'; title = 'Popular' },
     @{ artist = 'Cynthia Erivo'; album = 'Wicked: For Good - The Soundtrack'; title = 'No Good Deed' },
     @{ artist = 'Wicked Movie Cast'; album = 'Wicked: For Good - The Soundtrack'; title = 'No Good Deed' }
 )
@@ -25,7 +26,7 @@ foreach ($q in $queries) {
             $manifest -split "`n" | ForEach-Object {
                 $variant = $_.Trim()
                 if ($variant.StartsWith('#EXT-X-STREAM-INF:')) {
-                    $codec = if ($variant -match 'avc1\\.') { 'H264' } elseif ($variant -match 'hvc1\\.') { 'HEVC' } else { 'other' }
+                    $codec = if ($variant -match 'avc1') { 'H264' } elseif ($variant -match 'hvc1') { 'HEVC' } else { 'other' }
                     $res = if ($variant -match 'RESOLUTION=([0-9]+x[0-9]+)') { $Matches[1] } else { '?' }
                     $bw = if ($variant -match 'BANDWIDTH=([0-9]+)') { [Math]::Round([double]$Matches[1]/1000000,2) } else { 0 }
                     Write-Host "Full-video variant codec=$codec resolution=$res bandwidth=$bw Mbps"
