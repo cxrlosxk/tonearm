@@ -14,7 +14,11 @@ foreach ($q in $queries) {
         $response = Invoke-RestMethod -Uri $endpoint -Method Get -TimeoutSec 20 -Headers @{Accept='application/json'}
         $hls = if ($response.url -match '^https://') { $response.url } else { $response.url_tall }
         if ($hls -match '^https://') {
-            $manifest = (Invoke-WebRequest -Uri $hls -Method Get -TimeoutSec 20).Content
+            $streamResponse = Invoke-WebRequest -Uri $hls -Method Get -TimeoutSec 20
+            $raw = $streamResponse.Content
+            $manifest = if ($raw -is [byte[]]) { [Text.Encoding]::UTF8.GetString($raw) } else { [string]$raw }
+            $preview = ($manifest.Substring(0, [Math]::Min(100, $manifest.Length)) -replace '[^\x20-\x7E]', '.')
+            Write-Host "CDN diagnostic: host=$(([uri]$hls).Host) status=$($streamResponse.StatusCode) content-type=$($streamResponse.Headers['Content-Type']) length=$($manifest.Length) start=$preview"
             if (-not ($manifest -match '#EXTM3U')) {
                 throw 'Online artwork URL did not return an HLS manifest'
             }
