@@ -8,11 +8,17 @@ The feature is **off by default**. While it is off, Tonearm creates no media dec
 
 *The covers in this image are FFmpeg test patterns, not album artwork. They were captured from OBS Studio 30.0.2 on Linux while the scripted test player was running.*
 
-## Where the videos come from
+## Automatic Apple Music artwork (experimental, Windows)
 
-In this version the videos come from **a folder you choose**. Tonearm downloads nothing.
+When **Animated artwork when available** is selected and **Local artwork folder** is blank, Tonearm looks up the current artist/album/track in the independent public API at [artwork.m8tec.top](https://artwork.m8tec.top). Its response provides genuine Apple Music HLS artwork streams. OBS FFmpeg plays the HLS media directly—Tonearm doesn't synthesize movement or fetch/store MP4 videos.
 
-Name each file after the release:
+The lookup sends **artist, album, and track title** to that third party. It does not transmit your Apple ID, Apple Music credentials, or listening history beyond the current lookup. Requests run off the graphics thread; a failed lookup, ambiguous album, unavailable service, or unsupported song falls back to the ordinary still artwork.
+
+This service is **unofficial**, can change, and may be rate-limited. It is not owned or operated by Apple or Tonearm. Only an exact normalized artist and album edition match is accepted, and video locations are limited to Apple CDN HTTPS hosts. Tonearm doesn't extract or store Apple web-player tokens.
+
+### Use your own local motion library instead
+
+To avoid network lookups, choose a folder. Name each file after the release:
 
 ```
 Phoebe Bridgers - Punisher.mp4          square artwork
@@ -21,33 +27,13 @@ Fleetwood Mac - Rumours (Super Deluxe).mp4
 Phoebe Bridgers - Kyoto - Single.mp4
 ```
 
-Supported files are `.mp4`, `.m4v`, `.mov`, `.webm`, `.mkv` and `.m3u8` (an HLS playlist with its segments next to it, including fragmented-MP4 HLS). New files are picked up within about ten seconds.
+Supported files: `.mp4`, `.m4v`, `.mov`, `.webm`, `.mkv`, and `.m3u8`. New files are picked up within about ten seconds. When a local folder is set, Tonearm never queries the remote API.
 
-### Why Tonearm doesn't fetch Apple Music's videos
+### About CoverPy
 
-Apple Music shows motion artwork for some albums. The public Apple Music API doesn't provide it: the documented album attributes include only a still `artwork` field, and an Apple engineer said on the developer forums that this data "is not made available by Apple Music API for third-party apps" ([forum thread](https://developer.apple.com/forums/thread/696843)).
+[CoverPy](https://github.com/matteing/coverpy) established a working approach for locating Apple Music's genuine editorial motion HLS streams, including square and portrait artwork. Its experimental approach extracts the Apple Music web-player token to call Apple's undocumented `editorialVideo` catalog field. Tonearm's online mode instead uses a separately published third-party artwork lookup endpoint that returns the HLS URLs, avoiding web-player credential extraction inside the plugin. Both approaches use actual Apple motion streams rather than simulated animation.
 
-[CoverPy](https://github.com/matteing/coverpy) shows that the videos can be reached anyway. Its experimental `motion.py`:
-
-1. loads an album page on music.apple.com,
-2. downloads the web player's JavaScript bundle,
-3. extracts the web player's own sign-in token (a JWT issued to `AMPWebPlay`) from it,
-4. calls Apple's private catalog API (`amp-api.music.apple.com`) with that token and an `Origin: https://music.apple.com` header, asking for the undocumented `editorialVideo` extension, and
-5. reads the HLS playlists it returns.
-
-Steps 3 and 4 sign in with a credential Apple issued to its own web player, and present the request as coming from Apple's website. That is getting past an authentication control rather than using a published interface, so Tonearm doesn't include it and won't ship it. The live test that would exercise it was not run. Separately:
-
-- Apple's [Developer Program License Agreement](https://developer.apple.com/support/terms/apple-developer-program-license-agreement/), section 3.3.6(D), covers MusicKit and the Apple Music API. It forbids calling them "for purposes unrelated to facilitating access to Your end users' Apple Music subscriptions", forbids modifying MusicKit content, and says album art from the API "may not be used separately from music playback or managing playlists". So a developer token of your own doesn't make this permitted either. Tonearm only shows what another app is playing, and it masks and tints the artwork.
-- Apple's website terms prohibit automated scraping of its sites.
-- Motion artwork is copyrighted promotional material supplied by labels. Tonearm never bundles any.
-
-**What would change this:** Apple documenting motion artwork in the Apple Music API with terms that allow display in a now-playing overlay. The code is ready for that: video sources plug into `MotionSource` (see [Architecture](architecture.md#animated-artwork)), and everything after "here is a video for this release" is shared.
-
-### Notes from reviewing CoverPy
-
-- CoverPy's 75 offline tests pass (Python 3.13, mocked HTTP). They prove its parsing, not that Apple's service currently answers.
-- For a playlist with a separate initialization segment (`#EXT-X-MAP:URI="init.mp4"`), CoverPy's "direct MP4" is that initialization segment. It holds no frames and can't be played on its own. This was reproduced with a locally generated fragmented-MP4 HLS stream: CoverPy returned `signal-init.mp4`, which has no video frames, while the playlist itself decoded to 120 frames. CoverPy's test fixtures use the byte-range layout (`BYTERANGE="897@0"`), where the URI names one file that holds the initialization data and every fragment, so it can be played as a whole. Which layout Apple serves wasn't checked, because the live endpoint wasn't called. Tonearm plays the HLS playlist itself through FFmpeg, which handles both layouts.
-- No CoverPy code is included in Tonearm. CoverPy is MIT-licensed, which is compatible with Tonearm's GPL-2.0-or-later, so reusing its code would only have needed its copyright notice kept.
+The Apple Music API does not officially document `editorialVideo` for third parties. The experimental online mode is subject to service availability and content terms. It is intentionally opt-in and disabled by default.
 
 ## Settings
 
@@ -58,7 +44,7 @@ The settings are in **Animated artwork (Experimental)** in the source properties
 | **Artwork** | *Static artwork* (default) or *Animated artwork when available*. |
 | **Preferred orientation** | *Automatic* uses portrait videos for tall artwork areas and square ones otherwise. *Square* and *Portrait* force a choice. If only one shape exists, it is used, center-cropped to fit. |
 | **When music pauses** | *Pause the animation* (default) freezes the current frame. *Keep looping* doesn't. |
-| **Animated artwork folder** | The folder to read videos from. |
+| **Local artwork folder** | Optional. Blank enables online automatic artwork lookup on Windows; a folder selects local-only video files. |
 
 **Reduce motion** in the Motion group always shows the still cover. There is no quality setting: Tonearm copies frames at the size the artwork is drawn, and never above the video's own resolution.
 
@@ -113,4 +99,4 @@ GPU load, encoder impact and hardware decoding on Windows still need measuring o
 
 ## Privacy and network
 
-With the version in this branch, Tonearm makes **no network requests**, whether or not the feature is on. It reads the folder you choose, and nothing else.
+With static artwork selected, Tonearm makes no motion-artwork network requests. With animated artwork selected and no local folder, Windows Tonearm sends the playing artist, album and track title to artwork.m8tec.top for HLS URL discovery. With a local folder set, Tonearm uses only local files.
