@@ -106,6 +106,12 @@ jobs:
         working-directory: tonearm
         run: ./tests/online-motion-api-smoke.ps1
 
+      - name: Probe Little Mermaid soundtrack and original motion FPS (diagnostic)
+        continue-on-error: true
+        shell: pwsh
+        working-directory: tonearm
+        run: ./tests/online-mermaid-motion-fps.ps1
+
       - name: Package
         shell: pwsh
         working-directory: tonearm
