@@ -11,10 +11,12 @@
 
 int main(int argc, char **argv)
 {
-	if (argc != 2)
+	if (argc < 2 || argc > 3)
 		return 2;
+	const auto quality = argc == 3 && std::string(argv[2]) == "balanced" ?
+		tonearm::MotionQuality::Balanced : tonearm::MotionQuality::Maximum;
 	std::atomic<bool> cancelled{false};
-	const auto local = tonearm::cacheMotionHls(argv[1], cancelled);
+	const auto local = tonearm::cacheMotionHls(argv[1], cancelled, quality);
 	if (!local) {
 		std::cerr << "HLS caching failed\n";
 		return 1;
@@ -28,7 +30,7 @@ int main(int argc, char **argv)
 	q.album = "Plastic Beach";
 	q.title = "Melancholy Hill";
 	q.preferred = tonearm::MotionShape::Square;
-	q.quality = tonearm::MotionQuality::Maximum;
+	q.quality = quality;
 	const tonearm::MotionAsset asset{*local, tonearm::MotionShape::Square};
 	if (!tonearm::rememberMotionForAlbum(q, asset)) {
 		std::cerr << "Failed to persist album motion index\n";
