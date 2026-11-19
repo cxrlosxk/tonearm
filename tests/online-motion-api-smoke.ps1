@@ -20,6 +20,15 @@ foreach ($q in $queries) {
             $streamResponse = Invoke-WebRequest -Uri $hls -Method Get -TimeoutSec 20
             $raw = $streamResponse.Content
             $manifest = if ($raw -is [byte[]]) { [Text.Encoding]::UTF8.GetString($raw) } else { [string]$raw }
+            Write-Host "HLS primary playlist diagnostics:"
+            $manifest -split "`n" | Select-Object -First 18 | ForEach-Object {
+                $ln = $_.Trim()
+                if ($ln.StartsWith("#")) { Write-Host $ln }
+                elseif ($ln) {
+                    $p = [uri]::new([uri]$hls, $ln)
+                    Write-Host "URI host=$($p.Host) suffix=$([IO.Path]::GetExtension($p.AbsolutePath))"
+                }
+            }
             if ($manifest -notmatch '#EXTM3U') {
                 throw 'URL returned non-HLS content'
             }
