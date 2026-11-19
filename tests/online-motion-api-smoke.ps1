@@ -30,6 +30,27 @@ foreach ($q in $queries) {
                     Write-Host "URI host=$($p.Host) suffix=$([IO.Path]::GetExtension($p.AbsolutePath))"
                 }
             }
+            if ($q.artist -eq 'Gorillaz') {
+                $masterRows = @($manifest -split "`n")
+                for ($i = 0; $i -lt $masterRows.Count - 1; $i++) {
+                    if ($masterRows[$i] -like '#EXT-X-STREAM-INF:*' -and $masterRows[$i] -match 'avc1') {
+                        $variant = [uri]::new([uri]$hls, $masterRows[$i+1].Trim())
+                        $vResponse = Invoke-WebRequest -Uri $variant.AbsoluteUri -Method Get -TimeoutSec 20
+                        $vContent = $vResponse.Content
+                        $vText = if ($vContent -is [byte[]]) { [Text.Encoding]::UTF8.GetString($vContent) } else { [string]$vContent }
+                        Write-Host "HLS media playlist diagnostic ($($variant.Host)):"
+                        $vText -split "`n" | Select-Object -First 35 | ForEach-Object {
+                            $ln = $_.Trim()
+                            if ($ln.StartsWith("#")) { Write-Host ($ln -replace 'URI="[^"]+"','URI="[media-url]"') }
+                            elseif ($ln) {
+                                $segmentUri = [uri]::new($variant,$ln)
+                                Write-Host "MEDIA host=$($segmentUri.Host) suffix=$([IO.Path]::GetExtension($segmentUri.AbsolutePath))"
+                            }
+                        }
+                        break
+                    }
+                }
+            }
             if ($manifest -notmatch '#EXTM3U') {
                 throw 'URL returned non-HLS content'
             }
