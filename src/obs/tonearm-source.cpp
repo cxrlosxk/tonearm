@@ -200,7 +200,7 @@ struct TonearmSource {
 			video = motion.prepare(ops, layers ? layers->videoMask.box : Rect{}, t);
 		}
 		if (!ops.empty())
-			gpu.render(ops, video);
+			gpu.render(ops, video, motion.videoNeedsSrgbEncode());
 	}
 
 	obs_properties_t *properties()
