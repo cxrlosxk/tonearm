@@ -97,6 +97,21 @@ TEST("motion: edition fallback query preserves the album identity")
 	CHECK(motionBaseAlbumQuery("Wicked: For Good - The Soundtrack").empty());
 }
 
+TEST("motion: verified soundtrack track can be credited separately from soundtrack composers")
+{
+	MotionQuery q = current("Halle", "The Little Mermaid (Original Motion Picture Soundtrack)");
+	q.title = "Part of Your World (Reprise)";
+	const CatalogAlbum album{1684317223ULL, "Alan Menken & Howard Ashman",
+	                         "The Little Mermaid (Original Motion Picture Soundtrack)"};
+	CHECK(verifiedSoundtrackTrack(q, album, album.artist, album.title, "Halle", q.title));
+	CHECK(!verifiedSoundtrackTrack(q, album, album.artist, album.title, "Melissa McCarthy", q.title));
+	CHECK(!verifiedSoundtrackTrack(q, album, album.artist, album.title, "Halle", "Under the Sea"));
+	CHECK(!verifiedSoundtrackTrack(q, album, "Tim Mountain", album.title, "Halle", q.title));
+	CHECK(!verifiedSoundtrackTrack(q, album, album.artist, "The Little Mermaid (Original Broadway Cast Recording)", "Halle", q.title));
+	CHECK(!verifiedSoundtrackTrack(q, {1684317223ULL, album.artist, "The Little Mermaid (Original Motion Picture Soundtrack) [Deluxe Edition]"},
+	                              album.artist, album.title, "Halle", q.title));
+}
+
 TEST("catalog: missing identifiers and incomplete metadata are not accepted")
 {
 	CHECK(!exactCatalogAlbumId(current("", "19"), {{101, "Adele", "19"}}));
