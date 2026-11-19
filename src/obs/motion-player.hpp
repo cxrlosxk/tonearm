@@ -92,6 +92,8 @@ private:
 	bool haveTexture_ = false;
 	bool videoNeedsSrgbEncode_ = false;
 	uint64_t loggedTransferGeneration_ = ~0ull;
+	double captureReportStart_ = -1.0;
+	uint32_t capturedFramesInWindow_ = 0;
 	uint64_t capturedGeneration_ = ~0ull;
 };
 
