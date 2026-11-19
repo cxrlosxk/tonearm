@@ -6,8 +6,8 @@
 // Decoding is delegated to OBS's own media source ("ffmpeg_source"), created as a
 // private child: it brings FFmpeg, hardware decoding, HLS, looping and frame timing,
 // and decodes each video once no matter how many times Tonearm is drawn. Tonearm
-// copies the current frame, cropped to the artwork box and at the box's size, into
-// one reusable texture at most 30 times a second, and draws it with its own mask.
+// copies the current frame, cropped and supersampled for the artwork box, into
+// one reusable texture at most 60 times a second (never exceeding OBS's draw cadence).
 //
 // Nothing here exists while the feature is off: no child source, no resolver thread,
 // no disk or network access.
