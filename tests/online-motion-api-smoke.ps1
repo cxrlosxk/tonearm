@@ -58,6 +58,7 @@ foreach ($q in $queries) {
             if ($q.artist -eq 'Gorillaz') {
                 $cacheProbe = Join-Path (Get-Location) "build/RelWithDebInfo/tonearm-hls-cache-smoke.exe"
                 if (-not (Test-Path $cacheProbe)) { throw "Native HLS cache probe executable was not built" }
+                $env:TONEARM_HLS_DIAGNOSTICS = '1'
                 & $cacheProbe $hls
                 if ($LASTEXITCODE -ne 0) { throw "Native offline HLS cache validation failed" }
                 $cachePassed = $true
