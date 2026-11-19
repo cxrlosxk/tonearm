@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cctype>
 #include <cstdio>
 #include <cstdint>
@@ -15,11 +16,13 @@
 #include <fstream>
 #include <iomanip>
 #include <limits>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <sstream>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 namespace tonearm {
 namespace {
@@ -39,7 +42,29 @@ constexpr size_t kMaxManifest = 256 * 1024;
 constexpr size_t kMaxSegment = 20 * 1024 * 1024;
 constexpr size_t kMaxEntireAlbum = 100 * 1024 * 1024;
 constexpr size_t kMaxSegments = 128;
-std::mutex cacheMutex;
+// Two OBS overlay sources must not download the SAME album concurrently, but
+// downloads for DIFFERENT albums should not block each other behind one
+// global mutex. Timed locks permit prompt cancellation on rapid song changes.
+std::mutex keyMapMutex;
+std::unordered_map<std::wstring, std::weak_ptr<std::timed_mutex>> keyLocks;
+std::shared_ptr<std::timed_mutex> mutexForKey(const std::wstring &key)
+{
+	std::lock_guard<std::mutex> guard(keyMapMutex);
+	auto &weak = keyLocks[key];
+	if (auto live = weak.lock())
+		return live;
+	auto fresh = std::make_shared<std::timed_mutex>();
+	weak = fresh;
+	if (keyLocks.size() > 256) {
+		for (auto it = keyLocks.begin(); it != keyLocks.end();) {
+			if (it->second.expired())
+				it = keyLocks.erase(it);
+			else
+				++it;
+		}
+	}
+	return fresh;
+}
 void cacheTrace(const char *stage) {
   char flag[2]{};
   if (GetEnvironmentVariableA("TONEARM_HLS_DIAGNOSTICS", flag, 2))
@@ -417,8 +442,7 @@ std::optional<std::string> cacheMotionHls(const std::string &playlistUrl, const 
 {
 	if (!appleCdnUrl(playlistUrl) || cancelled)
 		return std::nullopt;
-	// Avoid collisions between two Tonearm overlays requesting the same album.
-	std::lock_guard<std::mutex> lock(cacheMutex);
+	// Album-specific locking is acquired below, after the normalized key is known.
 	wchar_t localAppData[32768]{};
 	const DWORD size = GetEnvironmentVariableW(L"LOCALAPPDATA", localAppData, 32768);
 	if (!size || size >= 32768)
@@ -431,6 +455,14 @@ std::optional<std::string> cacheMotionHls(const std::string &playlistUrl, const 
 
 	// Quality variants must not reuse a previous lower-resolution cached file.
 	const auto key = cacheKey(playlistUrl + (quality == MotionQuality::Maximum ? "|max" : "|balanced"));
+	auto albumLock = mutexForKey(key);
+	while (!cancelled && !albumLock->try_lock_for(std::chrono::milliseconds(100))) {
+		// A newer track superseded this lookup; don't block shutdown or the
+		// foreground song behind another overlay's network request.
+	}
+	if (cancelled)
+		return std::nullopt;
+	std::unique_lock<std::timed_mutex> locked(*albumLock, std::adopt_lock);
 	const fs::path finished = root / key;
 	const fs::path mp4Dest = finished / L"artwork.mp4";
 	const fs::path playlistDest = finished / L"artwork.m3u8";
