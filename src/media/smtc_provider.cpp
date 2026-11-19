@@ -234,8 +234,12 @@ private:
 			if (sessionsDirty)
 				syncSessions(manager, media);
 			for (auto &[id, entry] : entries_) {
-				if (media.count(id))
-					refreshMedia(entry);
+				// Some versions of Apple Music update the Windows media flyout
+				// without reliably raising MediaPropertiesChanged. Periodically
+				// recheck lightweight text metadata even without an event.
+				// The poll path avoids re-decoding artwork when the track is unchanged.
+				if (media.count(id) || safety)
+					refreshMedia(entry, !media.count(id));
 				if (media.count(id) || state.count(id) || safety)
 					refreshState(entry);
 			}
@@ -321,7 +325,7 @@ private:
 		}
 	}
 
-	void refreshMedia(Entry &e)
+	void refreshMedia(Entry &e, bool safetyPoll = false)
 	{
 		try {
 			const auto props = awaitWithin(e.session.TryGetMediaPropertiesAsync(), kQueryLimit);
@@ -336,6 +340,11 @@ private:
 
 			const std::string key = t.identity();
 			const bool sameTrack = key == e.artKey;
+			// A safety poll is only meant to recover missed track-change events.
+			// Do not fetch, hash, or decode a thumbnail every four seconds when
+			// the media app reports the same track.
+			if (safetyPoll && sameTrack)
+				return;
 			// Re-read artwork on every property event: players often deliver the thumbnail
 			// in a second event after the text. Unchanged bytes keep the same hash, so the
 			// overlay does not re-render.
