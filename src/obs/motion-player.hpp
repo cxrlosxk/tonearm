@@ -19,6 +19,7 @@
 #include <obs.h>
 
 #include <atomic>
+#include <chrono>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -74,6 +75,8 @@ private:
 	uint64_t serial_ = 0;
 	bool appliedPaused_ = false;
 	uint64_t appliedGeneration_ = ~0ull;
+	std::chrono::steady_clock::time_point lastRestartAt_{};
+	std::chrono::steady_clock::time_point lastDiagnosticsAt_{};
 	gs_texrender_t *texrender_ = nullptr;
 	double lastCapture_ = -1;
 	uint32_t texW_ = 0, texH_ = 0;
