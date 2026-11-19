@@ -6,14 +6,16 @@ Tonearm is a regular OBS plugin: one DLL and a folder of data files.
 
 1. Download `tonearm-<version>-windows-x64.zip` from the Releases page. (The `-pdb` zip next to it holds debug symbols and is only useful when reporting a crash.)
 2. Close OBS completely, including from the system tray.
-3. Extract the zip into the OBS installation folder, usually `C:\Program Files\obs-studio`. Windows will ask for administrator permission. Afterwards you should have:
+3. Extract the zip into the OBS installation folder, usually `C:\Program Files\obs-studio`. Windows will ask for administrator permission. The zip holds an `obs-plugins` and a `data` folder that merge into the ones OBS already has; let Windows merge them, never replace the folders. Afterwards you should have:
 
    ```
    C:\Program Files\obs-studio\obs-plugins\64bit\tonearm.dll
    C:\Program Files\obs-studio\data\obs-plugins\tonearm\
    ```
 
-4. Start OBS. **Help → Log Files → View Current Log** should contain a line like `[tonearm] loaded version 0.1.0`.
+   The licence, notice, changelog and a copy of this README sit inside `data\obs-plugins\tonearm\`, so nothing is added to the OBS folder itself.
+
+4. Start OBS. **Help → Log Files → View Current Log** should contain a line like `[tonearm] loaded version 0.2.0`.
 
 ### Alternative location
 

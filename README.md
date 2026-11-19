@@ -1,89 +1,137 @@
-# Tonearm
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/media/brand/wordmark-dark.svg">
+    <img src="docs/media/brand/wordmark-light.svg" alt="Tonearm" width="300">
+  </picture>
+</p>
 
-A now-playing overlay for OBS Studio on Windows. Tonearm reads what Apple Music, Spotify and other players report to Windows, and draws the title, artist, album, artwork and progress as a native OBS source, with four designed looks to choose from.
+<p align="center">
+  A native now-playing overlay for OBS Studio on Windows.<br>
+  It shows what you're listening to as a designed card, and can show the album's own motion artwork.
+</p>
 
-![The four Tonearm presets, captured in OBS](docs/media/overview.webp)
+<p align="center">
+  <a href="https://github.com/cxrlosxk/tonearm/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/cxrlosxk/tonearm?style=flat-square&label=release&color=4a4458"></a>
+  <a href="#requirements"><img alt="OBS Studio 30.2 or newer on Windows 10 and 11" src="https://img.shields.io/badge/OBS_Studio-30.2%2B_·_Windows-4a4458?style=flat-square"></a>
+  <a href="LICENSE"><img alt="License: GPL-2.0-or-later" src="https://img.shields.io/badge/license-GPL--2.0--or--later-4a4458?style=flat-square"></a>
+</p>
 
-![A track change in each preset](docs/media/demo.gif)
+<p align="center">
+  <a href="https://github.com/cxrlosxk/tonearm/releases/latest"><b>Download</b></a> &nbsp;·&nbsp;
+  <a href="#install">Install</a> &nbsp;·&nbsp;
+  <a href="#animated-album-artwork">Animated artwork</a> &nbsp;·&nbsp;
+  <a href="#four-presets">Presets</a> &nbsp;·&nbsp;
+  <a href="docs/settings.md">Settings</a> &nbsp;·&nbsp;
+  <a href="docs/troubleshooting.md">Help</a>
+</p>
 
-> **Status: v0.2.0 experimental release candidate.** Tonearm's Windows now-playing and genuine Apple Music animated-artwork integration have been exercised with real playback on a user's PC. The Windows and Linux CI pipelines check compilation and core tests; Windows CI also verifies real motion-video downloads and persistent album-cache reuse. Full smoothness and hardware-decoder performance must still be checked on each user's OBS configuration before a stable release.
+<br>
 
-## What it does
+<p align="center">
+  <img src="docs/media/hero.webp" width="880" alt="Four Tonearm overlays on a dark stage. The large Glass card in the middle plays a track, changes to a song with a long title that scrolls, then returns. Neon and Minimal bars and a tall Editorial card sit around it.">
+</p>
 
-- **Finds your music automatically.** Tonearm listens to the Windows media controls, the same feed that drives the volume flyout and lock screen. Apple Music, Spotify, TIDAL, Deezer, Amazon Music, foobar2000, MusicBee, VLC and Media Player all report there. No accounts or API keys are needed for ordinary now-playing metadata. The optional experimental **online animated artwork** feature uses a third-party lookup service.
-- **Four presets that differ in more than color.** Glass, Minimal, Neon and Editorial each have their own typography, surface treatment and motion.
-- **Four layouts.** Compact and expanded horizontal bars, a square card and a vertical card. Each one rearranges its content to fit the size you give it.
-- **Colors from the artwork.** The accent and background tint come from the album art. Text and accent colors are checked against the actual background and adjusted to stay readable.
-- **Accurate progress.** Players only report their position occasionally, so Tonearm extrapolates between reports and glides across seeks instead of jumping.
-- **Considered motion.** Track changes, artwork arriving late, pausing and resuming each have their own transition. Long titles scroll with soft edges. A reduced-motion option swaps all movement for short crossfades.
-- **Playback states.** Playing, paused (dim, keep, or hide after a delay), nothing playing (hide or show a message) and player closed are all handled.
-- **Choose which player wins.** Automatic selection, a preferred order, or a strict allow list. Browsers are excluded by default because they also report videos and ads.
-- **Presets as files.** Export your settings to a JSON file and import them into another scene or another PC.
-- **Light on OBS.** Text and surfaces are rendered on a background thread only when something changes. Each frame the GPU just composites a handful of textures. When the source isn't visible in any scene, it skips rendering entirely.
+Tonearm reads the track Windows already knows about, from Apple Music, Spotify and any other player in the volume flyout, and draws it inside OBS as a real source: title, artist, album, artwork and a progress bar that moves smoothly between the player's updates. There is no browser source, no account and no API key.
 
-## Presets
+## Animated album artwork
 
-| | Compact | Expanded | Square | Vertical |
-|---|---|---|---|---|
-| **Glass** frosted surface from a blurred copy of the artwork | ![](docs/media/presets/glass-compact.webp) | ![](docs/media/presets/glass-expanded.webp) | ![](docs/media/presets/glass-square.webp) | ![](docs/media/presets/glass-vertical.webp) |
-| **Minimal** flat, quiet, remaining time only | ![](docs/media/presets/minimal-compact.webp) | ![](docs/media/presets/minimal-expanded.webp) | ![](docs/media/presets/minimal-square.webp) | ![](docs/media/presets/minimal-vertical.webp) |
-| **Neon** dark glass, glowing edge and progress | ![](docs/media/presets/neon-compact.webp) | ![](docs/media/presets/neon-expanded.webp) | ![](docs/media/presets/neon-square.webp) | ![](docs/media/presets/neon-vertical.webp) |
-| **Editorial** serif title, full-bleed artwork | ![](docs/media/presets/editorial-compact.webp) | ![](docs/media/presets/editorial-expanded.webp) | ![](docs/media/presets/editorial-square.webp) | ![](docs/media/presets/editorial-vertical.webp) |
+<p align="center">
+  <a href="docs/media/artwork/artwork.mp4"><img src="docs/media/artwork/artwork.webp" width="880" alt="Five Tonearm overlays recorded in OBS, each playing an album's Apple Music motion artwork: SZA's SOS (waves around a figure on a diving board), Mariah Carey's Merry Christmas (falling snow), Ariana Grande's Positions, Shawn Mendes's Wonder and Katy Perry's 143 (a swirling pink vortex)."></a>
+</p>
 
-All of these are screenshots of the Tonearm source in OBS Studio, captured at 2× using the built-in sample tracks. The sample songs, artists and covers are invented and generated by Tonearm itself. A few titles were mid-scroll when captured. The animation above was rendered frame by frame with `tonearm-render`, a headless tool in this repository that drives the same scene and rasterizer code as the plugin.
+Many albums on Apple Music have a moving cover. With **Animated artwork** turned on, Tonearm finds that video for the album you're playing and plays it in place of the still cover, masked into whichever preset and layout you use. The clip above is a screen recording of Tonearm 0.2.0 running in OBS Studio on Windows 11 with Apple Music; nothing in it was edited apart from cropping. ([MP4](docs/media/artwork/artwork.mp4), [GIF](docs/media/artwork/artwork.gif))
+
+- **Off by default and opt-in.** Track metadata always comes from Windows on your PC. Only when you turn this on does Tonearm send the artist and album name to an independent artwork lookup service to find the video.
+- **Cached on your PC.** Each video is downloaded once to `%LOCALAPPDATA%\Tonearm\MotionCache`. Playing the album again starts instantly and needs no lookup.
+- **Light on the GPU.** *Smart* quality picks a resolution that matches the card's size on screen, instead of decoding 4K for a small overlay.
+- **Always a cover.** When an album has no motion artwork, or the lookup fails, the still cover stays exactly as before.
+
+You can also skip the online lookup and point Tonearm at a folder of your own videos. [Animated artwork](docs/animated-artwork.md) explains matching, quality, the cache and privacy.
+
+```mermaid
+flowchart LR
+  P["Apple Music, Spotify,<br>any player"] -->|now playing| W["Windows media<br>controls"]
+  W -->|title, artist, album,<br>cover, position| T["Tonearm<br>in OBS"]
+  T -.->|"artist and album<br>(only with Animated artwork on)"| S["Artwork lookup<br>service"]
+  S -.->|motion video| C[("Cache on<br>your PC")]
+  C -.-> T
+```
+
+## Four presets
+
+<p align="center">
+  <img src="docs/media/presets.webp" width="880" alt="One expanded Tonearm card changing through the four presets in turn: Glass, Minimal, Neon and Editorial, with the active name underlined below.">
+</p>
+
+The presets differ in more than color. **Glass** builds a frosted surface from a blurred copy of the artwork. **Minimal** is flat and quiet and shows only the remaining time. **Neon** is dark glass with a glowing edge and progress line. **Editorial** sets the title in a serif over full-bleed artwork. Each has its own type, surface and transitions.
+
+<details>
+<summary>All sixteen preset and layout combinations</summary>
+<br>
+
+<img src="docs/media/presets/glass.webp" width="880" alt="Glass preset in its vertical, square, expanded and compact layouts">
+<img src="docs/media/presets/minimal.webp" width="880" alt="Minimal preset in its vertical, square, expanded and compact layouts">
+<img src="docs/media/presets/neon.webp" width="880" alt="Neon preset in its vertical, square, expanded and compact layouts">
+<img src="docs/media/presets/editorial.webp" width="880" alt="Editorial preset in its vertical, square, expanded and compact layouts">
+
+</details>
+
+## Four layouts
+
+<p align="center">
+  <img src="docs/media/layouts.webp" width="880" alt="The Editorial preset in all four layouts at once, vertical, square, expanded and compact, changing track together.">
+</p>
+
+Compact and expanded bars, a square card and a tall vertical card. Each layout rearranges its content for the size you give it, and everything is drawn at the source's real size, so a bigger source is sharper rather than stretched.
+
+## What else it does
+
+- **Finds your music automatically.** Anything that shows up in the Windows media flyout works. Apple Music, Spotify, TIDAL, Deezer, Amazon Music, foobar2000, MusicBee, VLC and Media Player are recognised by name.
+- **Picks the right player.** Automatic, a preferred order, or a strict allow list. Browsers are left out unless you include them, because they also report videos and ads.
+- **Colors from the artwork, kept readable.** Accent and tint come from the cover, and text is checked against the real background to meet WCAG AA contrast.
+- **Smooth progress.** Players report their position only now and then, so Tonearm counts forward between reports and glides across seeks.
+- **Considered motion.** Track changes, late-arriving artwork, pause and resume each have their own transition. Long titles scroll with soft edges. *Reduce motion* swaps everything for short crossfades and keeps the still cover.
+- **Handles silence.** Paused (dim, keep or hide after a delay), nothing playing (hide or show a message) and player closed are all covered.
+- **Presets as files.** Export your settings to JSON and import them into another scene or PC.
+- **Cheap to run.** Text and surfaces are drawn on a background thread only when something changes; each frame the GPU composites a few textures. A source that isn't visible in any scene does no work at all.
 
 ## Install
 
-1. Download `tonearm-<version>-windows-x64.zip` from the [Releases](../../releases) page.
-2. Close OBS.
-3. Extract the zip into your OBS installation folder, usually `C:\Program Files\obs-studio`. It adds `obs-plugins\64bit\tonearm.dll` and `data\obs-plugins\tonearm\`.
+1. Download `tonearm-v0.2.0-windows-x64.zip` from the [latest release](https://github.com/cxrlosxk/tonearm/releases/latest).
+2. Close OBS completely, including from the system tray.
+3. Extract the zip into your OBS folder, usually `C:\Program Files\obs-studio`. It contains an `obs-plugins` and a `data` folder that **merge** into the ones already there; if Windows asks, choose to merge, never to replace.
 4. Start OBS, click **+** under Sources and add **Tonearm Now Playing**.
 
-To remove it, delete those two items again. [Getting started](docs/getting-started.md) has the full steps, plus an alternative location under `C:\ProgramData` that keeps Tonearm separate from OBS's own files.
+You'll end up with `obs-plugins\64bit\tonearm.dll` and `data\obs-plugins\tonearm\`. To uninstall, delete those two. [Getting started](docs/getting-started.md) covers the details, the alternative `C:\ProgramData` location, and first-time setup. The separate `-pdb` zip holds debug symbols and is only needed for crash reports.
 
 ## Requirements
 
 | | |
 |---|---|
-| Windows | Windows 10 version 1809 or newer, or Windows 11 (64-bit) |
+| Windows | Windows 10 version 1809 or newer, or Windows 11, 64-bit |
 | OBS Studio | 30.2 or newer, 64-bit |
-| Players | Anything that shows up in the Windows media flyout. Apple Music (Microsoft Store app), Spotify, TIDAL, Deezer, Amazon Music, foobar2000, MusicBee, VLC and Media Player are recognised by name. |
-| Linux, macOS | The plugin builds and runs, but there is no media connection yet, so it only shows sample tracks. Useful for development, not for streaming. |
+| Players | Anything in the Windows media flyout |
+| Animated artwork | Optional. Needs an internet connection the first time each album is played |
+| Linux, macOS | Builds and runs with sample tracks only; there is no media connection yet |
 
-## Settings at a glance
+## Privacy
 
-![Tonearm settings with live preview](docs/media/settings.webp)
-
-Settings are grouped into Look, Surface, Color, Typography, Motion, Playback states, Music sources and Preset files, and the OBS properties window previews every change live. Switch on **Show sample tracks when nothing is playing** while you design the scene, then switch it off before going live. Every option is described in the [settings reference](docs/settings.md). An experimental **Animated artwork** group can automatically display genuine Apple Music motion HLS artwork on Windows through a third-party API, or play locally supplied video files. Smart quality and local album caching reduce latency and GPU load ([details](docs/animated-artwork.md)).
-
-## How it compares
-
-Tonearm was started after looking closely at [OBSSpotifyPlugin](https://github.com/lingeriegoat/OBSSpotifyPlugin) by lingeriegoat, a native SMTC plugin licensed under the GPL. No code was taken from it. The table describes design choices rather than a ranking; the OBSSpotifyPlugin column is based on the settings and files in its 2.9 release.
-
-| | Tonearm | OBSSpotifyPlugin 2.9 | Browser-source widgets |
-|---|---|---|---|
-| Runs inside OBS without a browser source | Yes | Yes | No |
-| Needs an account or API key | No | No | Usually (Spotify Web API, Last.fm) |
-| Music sources | Windows media controls | Windows media controls | Usually one service |
-| Rendering | Layers rasterized off-thread on change, composited on the GPU each frame | GDI+ drawing into a texture | Chromium |
-| Looks | 4 presets, each with 4 layouts | One card with horizontal or vertical layout, plus VHS, 8 mm, glitch, duotone and black-and-white effects | Varies |
-| Text outlines and per-line spacing controls | No | Yes | Varies |
-| Readability adjustment against the artwork | Yes (WCAG AA) | Not in its settings | Varies |
-| Reduced-motion option | Yes | Not in its settings | Varies |
-| Audio meter | No, since Windows media controls carry no audio | VU meter with a randomness setting | Varies |
+Without animated artwork, Tonearm makes no network requests: everything it shows comes from Windows on your PC. With the online animated artwork turned on, it sends the current artist and album name to the third-party lookup service [artwork.m8tec.top](https://artwork.m8tec.top), may ask Apple's public iTunes Search API about the same album to confirm the right edition, and downloads the video from Apple's CDN. Albums already in the cache need no requests at all. It never sends your Apple ID, credentials or listening history. Setting a local artwork folder turns the online lookup off entirely.
 
 ## Limitations
 
-These are deliberate or come from what Windows provides. They are explained in more detail in [Troubleshooting](docs/troubleshooting.md).
+- **The motion artwork lookup is unofficial.** It relies on an independent service that isn't run by Apple or by Tonearm. It can change or go away, and not every album has motion artwork.
+- **No audio visualizer.** Windows media controls carry metadata, not audio, and a visualizer that moved without real audio would be pretending.
+- **Position is extrapolated** between the player's reports and is accurate to about a second.
+- **Artwork resolution is up to the player.** Some players hand Windows a small thumbnail, which looks soft on large layouts.
+- **No playback controls.** Tonearm shows what's playing; it doesn't play, pause or skip.
+- **Live data on Windows only** for now.
 
-- **No audio visualizer.** The Windows media controls carry metadata only, not audio. A visualizer that moved without real audio would be decoration pretending to be data, so Tonearm doesn't draw one. A proper version would read an OBS audio source; that is not implemented.
-- **Position is extrapolated.** Players report their position on seeks and state changes, not continuously. Tonearm counts forward between reports, which is accurate to about a second. If a player stops reporting during playback, the bar can drift until its next report.
-- **Some players report no duration.** In that case Tonearm hides the progress bar and times rather than guessing.
-- **Artwork resolution is up to the player.** Some players hand Windows a small thumbnail. Tonearm upscales it smoothly, but it can look soft on large layouts.
-- **Apple Music combines artist and album** into one field (`Artist — Album`). Tonearm splits it back apart, which can misfire if an artist name itself contains ` — `.
-- **No playback controls.** Tonearm displays what's playing; it doesn't play, pause or skip.
-- **Animated artwork is experimental.** On Windows, enabling the feature with a blank local-folder field queries an unofficial third-party artwork service for genuine Apple Music motion HLS streams. Availability is not guaranteed; artist and album metadata are sent to that service when an album isn't already cached locally. Set a folder to use local files only. See [Animated artwork](docs/animated-artwork.md).
-- **Windows only for live data.** Linux (MPRIS) and macOS support are not written yet.
+More in [Troubleshooting](docs/troubleshooting.md).
+
+## Documentation
+
+[Getting started](docs/getting-started.md) · [Settings reference](docs/settings.md) · [Animated artwork](docs/animated-artwork.md) · [Troubleshooting](docs/troubleshooting.md) · [Architecture](docs/architecture.md) · [Building](docs/building.md) · [Testing](docs/testing.md) · [Changelog](CHANGELOG.md) · [Media design](docs/media/DESIGN.md)
 
 ## Building from source
 
@@ -93,23 +141,12 @@ cmake --build build --config RelWithDebInfo
 ctest --test-dir build -C RelWithDebInfo
 ```
 
-Windows needs Visual Studio 2022 with the Windows 10 or 11 SDK and a libobs SDK. Linux needs `libobs-dev` and `libpango1.0-dev`. The full instructions, including how CI builds the libobs SDK, are in [Building](docs/building.md). How the pieces fit together is in [Architecture](docs/architecture.md).
-
-## Documentation
-
-- [Getting started](docs/getting-started.md)
-- [Settings reference](docs/settings.md)
-- [Animated artwork (experimental)](docs/animated-artwork.md)
-- [Troubleshooting and FAQ](docs/troubleshooting.md)
-- [Architecture](docs/architecture.md)
-- [Building](docs/building.md)
-- [Testing and verification status](docs/testing.md)
-- [Changelog](CHANGELOG.md)
+Windows needs Visual Studio 2022, the Windows SDK and a libobs SDK; Linux needs `libobs-dev` and `libpango1.0-dev`. See [Building](docs/building.md). Every image on this page except the animated-artwork recording is rendered by Tonearm's own scene and rasterizer code with the tools in [`tools/`](tools/media).
 
 ## License and credits
 
-Tonearm is free software under the GNU General Public License, version 2 or (at your option) any later version. See [LICENSE](LICENSE).
+Tonearm is free software under the GNU General Public License, version 2 or any later version. See [LICENSE](LICENSE).
 
-It bundles Inter, IBM Plex Sans, IBM Plex Mono and EB Garamond under the SIL Open Font License 1.1. Their copyright notices are in [NOTICE.md](NOTICE.md) and [data/fonts](data/fonts/README.md). Thanks to lingeriegoat for OBSSpotifyPlugin, which showed that a native SMTC overlay for OBS was worth doing well.
+It bundles Inter, IBM Plex Sans, IBM Plex Mono and EB Garamond under the SIL Open Font License 1.1 ([NOTICE.md](NOTICE.md)). Thanks to lingeriegoat for [OBSSpotifyPlugin](https://github.com/lingeriegoat/OBSSpotifyPlugin), which showed that a native SMTC overlay for OBS was worth doing well, and to [CoverPy](https://github.com/matteing/coverpy) for documenting how Apple Music motion artwork is structured.
 
-Apple Music, Spotify and other product names belong to their owners. Tonearm is not affiliated with or endorsed by any of them, or by the OBS Project.
+The album artwork shown in the animated-artwork recording belongs to the artists and their labels and is shown only to demonstrate the feature; see [NOTICE.md](NOTICE.md#media-in-this-repository). The sample tracks in every other image are invented. Apple Music, Spotify and other product names belong to their owners. Tonearm is not affiliated with or endorsed by any of them, or by the OBS Project.

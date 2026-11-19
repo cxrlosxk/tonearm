@@ -27,6 +27,20 @@ Tonearm's feature set was informed by studying [OBSSpotifyPlugin](https://github
 
 The sample tracks, artist names, album names and cover art shown by Tonearm are invented. The covers are generated procedurally at run time. Any resemblance to real releases is unintended.
 
+## Media in this repository
+
+Everything under `docs/media/` except `docs/media/artwork/` is rendered by Tonearm's own code from the invented sample tracks above, and is covered by the GPL like the rest of the project. The wordmark is set in EB Garamond (SIL OFL 1.1).
+
+The clips in `docs/media/artwork/` are short screen recordings of Tonearm running in OBS Studio while Apple Music played. They show album artwork, including Apple Music motion artwork, for:
+
+- *SOS* by SZA
+- *Wonder* by Shawn Mendes
+- *Merry Christmas* by Mariah Carey
+- *Positions* by Ariana Grande
+- *143* by Katy Perry
+
+That artwork is the property of the artists, their labels and their designers. It is not covered by Tonearm's license, is not included in the release package, and appears here only in short clips that demonstrate what the plugin displays. No audio is included. If you hold rights in any of it and want a clip removed, please open an issue and it will be taken down.
+
 ## Trademarks
 
 Apple Music, Spotify, TIDAL, Deezer, Amazon Music, Windows and OBS Studio are trademarks of their respective owners. Tonearm is not affiliated with or endorsed by them.
