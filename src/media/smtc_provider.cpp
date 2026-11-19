@@ -225,7 +225,7 @@ private:
 			}
 
 			const auto now = std::chrono::steady_clock::now();
-			const bool safety = now - lastSafety > std::chrono::seconds(4);
+			const bool safety = now - lastSafety > std::chrono::seconds(2);
 			if (!sessionsDirty && media.empty() && state.empty() && !safety)
 				continue;
 			if (safety)
@@ -341,7 +341,7 @@ private:
 			const std::string key = t.identity();
 			const bool sameTrack = key == e.artKey;
 			// A safety poll is only meant to recover missed track-change events.
-			// Do not fetch, hash, or decode a thumbnail every four seconds when
+			// Do not fetch, hash, or decode a thumbnail on every poll when
 			// the media app reports the same track.
 			if (safetyPoll && sameTrack)
 				return;
