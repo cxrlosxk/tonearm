@@ -231,6 +231,121 @@ void neonSurface(Image &card, const Style &s, const LayerSet &L, float u)
 
 } // namespace
 
+
+namespace {
+
+// A pressing takes its hue from the cover, but deliberately separates its
+// lightness from the sleeve, including covers dominated by one flat color.
+Color pressingColor(const Palette &pal)
+{
+	Oklch press = toOklch(toOklab(pal.accent));
+	press.L = std::clamp(press.L * 0.68f, 0.32f, 0.55f);
+	press.C = std::clamp(press.C * 0.95f, 0.022f, 0.16f);
+	Color result = fromOklab(fromOklch(press));
+	if (contrastRatio(result, pal.dominant) < 1.5f) {
+		press.L = relativeLuminance(pal.dominant) < 0.20f ? 0.60f : 0.30f;
+		result = fromOklab(fromOklch(press));
+	}
+	return result;
+}
+
+Image makeRecord(int side, const Palette &pal)
+{
+	Image img(side, side);
+	const float R = side * 0.487f;
+	const float cx = side * 0.5f, cy = side * 0.5f;
+	const Color base = pressingColor(pal);
+	const Color label = pal.deep.mix(pal.secondary, 0.26f);
+	constexpr float tau = 6.28318530718f;
+	for (int y = 0; y < side; ++y) {
+		uint8_t *p = img.row(y);
+		for (int x = 0; x < side; ++x, p += 4) {
+			const float dx = x + 0.5f - cx, dy = y + 0.5f - cy;
+			const float r = std::sqrt(dx * dx + dy * dy);
+			const float cover = std::clamp(R + 0.5f - r, 0.0f, 1.0f);
+			if (cover <= 0) continue;
+			const float angle = std::atan2(dy, dx);
+			// Concentric grooves and directional specular reflections: the highlights
+			// rotate with the record; no album-art pixels are mapped onto the disc.
+			const float groove = 0.035f * std::sin(r * 2.0f) + 0.014f * std::sin(r * 5.3f);
+			const float glint = 0.12f * std::pow(std::max(0.0f, std::cos(angle - 0.65f)), 9.0f) +
+				0.085f * std::pow(std::max(0.0f, std::cos(angle - 3.95f)), 14.0f);
+			const float rim = 0.13f * std::clamp((r - R * 0.96f) / (R * 0.04f), 0.0f, 1.0f);
+			float light = std::clamp(0.86f + groove + glint + rim, 0.58f, 1.17f);
+			Color c{std::clamp(base.r * light, 0.0f, 1.0f),
+				std::clamp(base.g * light, 0.0f, 1.0f),
+				std::clamp(base.b * light, 0.0f, 1.0f), 1.0f};
+			if (r < R * 0.325f && r > R * 0.312f)
+				c = base.mix(Color{0.76f, 0.77f, 0.75f, 1}, 0.23f);
+			if (r < R * 0.31f) {
+				c = label.mix(pal.accent, 0.38f);
+				const float stripe = (dy / R + 0.10f);
+				if (std::fabs(stripe) < 0.019f && dx > R * 0.04f && dx < R * 0.23f)
+					c = Color::hex("#f3eee2");
+				if (r > R * 0.28f) c = c.mix(Color{0, 0, 0, 1}, 0.12f);
+			}
+			if (r < R * 0.028f) c = Color::hex("#cacdd0");
+			p[0] = static_cast<uint8_t>(c.b * cover * 255.0f + 0.5f);
+			p[1] = static_cast<uint8_t>(c.g * cover * 255.0f + 0.5f);
+			p[2] = static_cast<uint8_t>(c.r * cover * 255.0f + 0.5f);
+			p[3] = static_cast<uint8_t>(cover * 255.0f + 0.5f);
+			(void)tau;
+		}
+	}
+	return img;
+}
+
+// Anti-aliased capsule renderer for the fixed metallic arm texture.
+void armStroke(Image &img, Vec2 a, Vec2 b, float radius, Color ink)
+{
+	const float vx = b.x - a.x, vy = b.y - a.y;
+	const float length2 = std::max(0.001f, vx * vx + vy * vy);
+	const int x0 = std::max(0, static_cast<int>(std::floor(std::min(a.x, b.x) - radius - 2)));
+	const int y0 = std::max(0, static_cast<int>(std::floor(std::min(a.y, b.y) - radius - 2)));
+	const int x1 = std::min(img.width(), static_cast<int>(std::ceil(std::max(a.x, b.x) + radius + 2)));
+	const int y1 = std::min(img.height(), static_cast<int>(std::ceil(std::max(a.y, b.y) + radius + 2)));
+	for (int y = y0; y < y1; ++y) {
+		uint8_t *p = img.row(y) + x0 * 4;
+		for (int x = x0; x < x1; ++x, p += 4) {
+			const float px = x + 0.5f, py = y + 0.5f;
+			const float t = std::clamp(((px - a.x) * vx + (py - a.y) * vy) / length2, 0.0f, 1.0f);
+			const float distance = std::hypot(px - (a.x + vx * t), py - (a.y + vy * t));
+			const float alpha = std::clamp(radius + 0.5f - distance, 0.0f, 1.0f) * ink.a;
+			const float inv = 1.0f - alpha;
+			p[0] = static_cast<uint8_t>(std::min(255.0f, ink.b * alpha * 255.0f + p[0] * inv) + 0.5f);
+			p[1] = static_cast<uint8_t>(std::min(255.0f, ink.g * alpha * 255.0f + p[1] * inv) + 0.5f);
+			p[2] = static_cast<uint8_t>(std::min(255.0f, ink.r * alpha * 255.0f + p[2] * inv) + 0.5f);
+			p[3] = static_cast<uint8_t>(std::min(255.0f, alpha * 255.0f + p[3] * inv) + 0.5f);
+		}
+	}
+}
+
+Image makeArm(const Layout &L)
+{
+	const Rect z = L.armZone;
+	Image img(std::max(1, static_cast<int>(std::ceil(z.w))), std::max(1, static_cast<int>(std::ceil(z.h))));
+	const float side = L.record.w;
+	const Vec2 p{L.armPivot.x - z.x, L.armPivot.y - z.y};
+	const Vec2 tip{L.record.x - z.x + side * 0.735f, L.record.y - z.y + side * 0.485f};
+	const float r = std::max(0.75f, side * 0.014f);
+	armStroke(img, {p.x + 1.1f, p.y + 1.2f}, {tip.x + 1.1f, tip.y + 1.2f}, r * 2.8f, Color{0, 0, 0, 0.45f});
+	armStroke(img, p, tip, r * 2.3f, Color::hex("#444b50"));
+	armStroke(img, p, tip, r * 1.20f, Color::hex("#d7dadb"));
+	armStroke(img, {p.x - r * 0.3f, p.y - r * 0.3f}, {tip.x - r * 0.3f, tip.y - r * 0.3f},
+		r * 0.42f, Color::hex("#ffffffc4"));
+	const float c = std::max(2.0f, side * 0.033f);
+	fillRoundRect(img, {p.x - c, p.y - c, c * 2, c * 2}, c, Paint::solid(Color::hex("#4f585e")));
+	fillRoundRect(img, {p.x - c * 0.62f, p.y - c * 0.62f, c * 1.24f, c * 1.24f}, c, Paint::solid(Color::hex("#c1c5c6")));
+	const float head = std::max(1.2f, side * 0.022f);
+	fillRoundRect(img, {tip.x - head * 1.35f, tip.y - head * 1.35f, head * 2.7f, head * 2.7f},
+		head * 0.55f, Paint::solid(Color::hex("#222628")));
+	fillRoundRect(img, {tip.x - head * 0.4f, tip.y - head * 0.4f, head * 0.8f, head * 0.8f},
+		head * 0.28f, Paint::solid(Color::hex("#f4e8cf")));
+	return img;
+}
+
+} // namespace
+
 Image fallbackArtwork(int size, uint64_t seed, const Palette &pal)
 {
 	Image img(size, size);
@@ -362,6 +477,12 @@ std::shared_ptr<LayerSet> rasterizeLayers(const Style &s, const DisplayContent &
 			break;
 		case Composition::Minimal:
 			fillRoundRect(cardImg, {0, 0, card.w, card.h}, 0, Paint::solid(s.surfaceColor));
+			break;
+		case Composition::Turntable:
+			fillRoundRect(cardImg, {0, 0, card.w, card.h}, 0, Paint::linear({0, 0}, {0, card.h},
+				{{0, s.surfaceColor.mix(Color::hex("#424749"), 0.28f)}, {1, s.surfaceColor}}));
+			fillRoundRect(cardImg, {0, 0, card.w, card.h}, 0, Paint::linear({0, 0}, {card.w * 0.40f, 0},
+				{{0, Color::hex("#ffffff12")}, {1, Color::hex("#ffffff00")}}));
 			break;
 		}
 		if (s.noise > 0)
@@ -500,6 +621,19 @@ std::shared_ptr<LayerSet> rasterizeLayers(const Style &s, const DisplayContent &
 			m.featherEdge = side ? 1 : 2;
 			m.feather = (side ? L.art.w : L.art.h) * 0.32f; // same hand-off as editorialSurface
 		}
+	}
+
+	// --- Turntable: independent vinyl pressing and tonearm textures ----------
+	if (comp == Composition::Turntable && L.recordVisible && !L.record.empty()) {
+		const int side = std::max(8, static_cast<int>(std::lround(L.record.w)));
+		set->record.image = share(makeRecord(side, set->palette));
+		set->record.id = nextImageId();
+		set->record.dst = L.record;
+		set->record.box = L.record;
+		set->arm.image = share(makeArm(L));
+		set->arm.id = nextImageId();
+		set->arm.dst = L.armZone;
+		set->arm.box = L.armZone;
 	}
 
 	// --- Colors that depend on the surface -----------------------------------
