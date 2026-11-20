@@ -117,7 +117,15 @@ void GpuCompositor::drawImage(const DrawOp &op, gs_texture_t *tex)
 	gs_effect_set_vec2(pFade_, &fade);
 
 	gs_matrix_push();
-	gs_matrix_translate3f(op.dst.x, op.dst.y, 0.0f);
+	if (std::fabs(op.rotation) > 0.0001f) {
+		const float ox = op.dst.w * op.rotationOrigin.x;
+		const float oy = op.dst.h * op.rotationOrigin.y;
+		gs_matrix_translate3f(op.dst.x + ox, op.dst.y + oy, 0.0f);
+		gs_matrix_rotaa4f(0.0f, 0.0f, 1.0f, op.rotation);
+		gs_matrix_translate3f(-ox, -oy, 0.0f);
+	} else {
+		gs_matrix_translate3f(op.dst.x, op.dst.y, 0.0f);
+	}
 	gs_technique_begin(techLayer_);
 	gs_technique_begin_pass(techLayer_, 0);
 	gs_draw_sprite(tex, 0, static_cast<uint32_t>(std::max(1.0f, std::round(op.dst.w))),
