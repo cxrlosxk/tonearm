@@ -12,7 +12,7 @@ using namespace tonearm;
 
 namespace {
 
-const char *kPresets[] = {"glass", "minimal", "neon", "editorial"};
+const char *kPresets[] = {"glass", "minimal", "neon", "editorial", "turntable"};
 const LayoutMode kLayouts[] = {LayoutMode::CompactHorizontal, LayoutMode::ExpandedHorizontal, LayoutMode::Square,
 			       LayoutMode::Vertical};
 
@@ -74,6 +74,11 @@ void checkLayout(const Style &s, const LayoutContent &c)
 		for (const Named &m : lines)
 			if (m.box->visible)
 				CHECK_MSG(overlap(n.box->rect, m.box->rect) < 1, what + ": " + n.name + " overlaps " + m.name);
+	}
+	if (s.composition == Composition::Turntable && c.hasArtwork) {
+		CHECK_MSG(L.recordVisible, what + ": record should be visible");
+		CHECK_MSG(inside(L.record, L.card), what + ": record should stay inside card");
+		CHECK_MSG(inside(L.armZone, L.card), what + ": arm should stay inside card");
 	}
 	if (L.artVisible) {
 		CHECK_MSG(inside(L.art, L.card), what + ": artwork leaves the card");
