@@ -66,6 +66,24 @@ TEST("raster: long titles scroll, or truncate when motion is reduced")
 	CHECK(!off->title.overflow);
 }
 
+TEST("raster: Turntable keeps the sleeve separate from a colored vinyl record")
+{
+	Style s = makePreset("turntable", LayoutMode::ExpandedHorizontal);
+	auto first = rasterizeLayers(s, content(0), testsupport::text());
+	auto second = rasterizeLayers(s, content(2), testsupport::text());
+	CHECK(first->art.valid());
+	CHECK(first->videoMask.valid);
+	CHECK(first->record.valid());
+	CHECK(first->arm.valid());
+	CHECK(first->record.id != first->art.id);
+	CHECK(first->record.image->width() > 60);
+	CHECK(first->record.image->data()[3] == 0); // transparent disc corners
+	CHECK(first->palette.valid && second->palette.valid);
+	CHECK(first->record.image->data() != second->record.image->data());
+	CHECK(first->layout.art.right() > first->layout.record.cx()); // sleeve peeks out
+	CHECK(first->layout.art.right() < first->layout.textColumn.x);
+}
+
 TEST("raster: short titles never scroll")
 {
 	auto set = rasterizeLayers(makePreset("minimal", LayoutMode::ExpandedHorizontal), content(2), testsupport::text());
