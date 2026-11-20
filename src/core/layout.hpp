@@ -32,6 +32,12 @@ struct Layout {
 	float cardRadius = 0;
 	float shadowMargin = 0;
 
+	// Only the Turntable preset uses these; the disc and stylus are separate from the cover sleeve.
+	Rect record;
+	Rect armZone;
+	Vec2 armPivot;
+	bool recordVisible = false;
+
 	Rect art;
 	ArtPlacement artPlacement = ArtPlacement::Inset;
 	float artRadius = 0;
