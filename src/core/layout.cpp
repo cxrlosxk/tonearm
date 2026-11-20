@@ -210,8 +210,8 @@ Layout computeLayout(const Style &s, const LayoutContent &content)
 			textW = std::max(0.0f, inner.right() - textX);
 		} else {
 			const float room = inner.h - copyH - progH - progGap - artGap;
-			side = std::max(8.0f, std::min(inner.w / 1.25f, room));
-			L.record = {std::round(inner.x + (inner.w - side * 1.25f) * 0.5f), inner.y,
+			side = std::max(8.0f, std::min(inner.w / 1.38f, room));
+			L.record = {std::round(inner.x + (inner.w - side * 1.37f) * 0.5f), inner.y,
 				std::round(side), std::round(side)};
 			textY = L.record.bottom() + artGap;
 		}
@@ -223,8 +223,8 @@ Layout computeLayout(const Style &s, const LayoutContent &content)
 		if (art) {
 			L.artVisible = true;
 			L.artPlacement = ArtPlacement::Inset;
-			L.art = {std::round(L.record.x + L.record.w * 0.40f), std::round(L.record.y + L.record.h * 0.065f),
-				std::round(L.record.w * 0.76f), std::round(L.record.h * 0.76f)};
+			L.art = {std::round(L.record.x + L.record.w * 0.54f), std::round(L.record.y + L.record.h * 0.065f),
+				std::round(L.record.w * 0.78f), std::round(L.record.h * 0.78f)};
 			L.artRadius = std::min(std::round(s.artworkRadius * u), L.art.w * 0.12f);
 		}
 		L.textColumn = {textX, textY, textW, horizontalDeck ? inner.h : inner.bottom() - textY};
