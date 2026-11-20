@@ -54,6 +54,8 @@ struct LayerSet {
 	LayerImage surface;    // shadow + card (and baked art for full-bleed compositions)
 	LayerImage glowRing;   // neon edge glow, animated separately
 	LayerImage art;
+	LayerImage record;     // Turntable only: color-matched pressing (never album imagery)
+	LayerImage arm;        // Turntable only: metallic stylus overlay
 
 	// Animated artwork: where a video frame goes and how it is masked, plus the parts
 	// of the still artwork that must stay on top of it (scrim, edge stroke).
