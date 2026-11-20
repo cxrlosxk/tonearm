@@ -15,6 +15,7 @@ const std::vector<PresetInfo> &presetList()
 		{"minimal", "Minimal"},
 		{"neon", "Neon"},
 		{"editorial", "Editorial"},
+		{"turntable", "Turntable"},
 	};
 	return list;
 }
@@ -56,6 +57,8 @@ const char *compositionId(Composition c)
 		return "neon";
 	case Composition::Editorial:
 		return "editorial";
+	case Composition::Turntable:
+		return "turntable";
 	}
 	return "glass";
 }
@@ -68,11 +71,22 @@ Composition compositionFromId(const std::string &id)
 		return Composition::Neon;
 	if (id == "editorial")
 		return Composition::Editorial;
+	if (id == "turntable")
+		return Composition::Turntable;
 	return Composition::Glass;
 }
 
 void defaultSize(Composition c, LayoutMode layout, int &w, int &h)
 {
+	if (c == Composition::Turntable) {
+		switch (layout) {
+		case LayoutMode::CompactHorizontal: w = 540; h = 132; break;
+		case LayoutMode::ExpandedHorizontal: w = 650; h = 220; break;
+		case LayoutMode::Square: w = h = 400; break;
+		case LayoutMode::Vertical: w = 340; h = 540; break;
+		}
+		return;
+	}
 	switch (layout) {
 	case LayoutMode::CompactHorizontal:
 		w = c == Composition::Minimal ? 420 : 460;
@@ -200,6 +214,32 @@ static Style editorial()
 	return s;
 }
 
+static Style turntable()
+{
+	Style s;
+	s.presetId = "turntable";
+	s.composition = Composition::Turntable;
+	s.cornerRadius = radiusLg;
+	s.surfaceOpacity = 0.96f;
+	s.shadowStrength = 0.42f;
+	s.backdropBlur = 0;
+	s.borderOpacity = 0.20f;
+	s.artworkBackground = false; // a neutral plinth lets colored records stand apart from the sleeve
+	s.surfaceColor = Color::hex("#17191b");
+	s.artworkRadius = radiusXs;
+	s.artworkShadow = 0.7f;
+	s.titleFont = {"Inter Display", 600, false, typeHeadline, -0.01f, false, false};
+	s.artistFont = {"Inter", 500, false, typeBody, 0, false, false};
+	s.albumFont = {"Inter", 400, false, typeSmall, 0, false, false};
+	s.timeFont = {"IBM Plex Mono", 500, false, typeCaption, 0.015f, true, false};
+	s.titleColor = Color::hex("#faf7f1");
+	s.artistColor = Color::hex("#d6d5d0");
+	s.albumColor = Color::hex("#adaca8");
+	s.progressHeight = 3;
+	s.noise = 0.008f;
+	return s;
+}
+
 Style makePreset(const std::string &id, LayoutMode layout)
 {
 	Style s;
@@ -209,6 +249,8 @@ Style makePreset(const std::string &id, LayoutMode layout)
 		s = neon();
 	else if (id == "editorial")
 		s = editorial();
+	else if (id == "turntable")
+		s = turntable();
 	else
 		s = glass();
 	s.layout = layout;

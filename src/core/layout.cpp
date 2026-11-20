@@ -188,6 +188,67 @@ Layout computeLayout(const Style &s, const LayoutContent &content)
 	const float pad = std::round((compact ? space3 : (comp == Composition::Minimal ? space4 : space5)) * u);
 	const Rect inner = L.card.inset(pad);
 
+
+	if (comp == Composition::Turntable) {
+		// The cover is a sleeve behind a procedural vinyl pressing. Both have
+		// their own geometry; the record is never filled with album artwork.
+		const bool horizontalDeck = horizontal;
+		const float progH = horizontalDeck && compact ? 0.0f : progressRowHeight(s, c, u);
+		const float progGap = progH > 0 ? std::round(space3 * u) : 0;
+		const float copyH = textBlockHeight(s, c, u);
+		const float artGap = std::round(space4 * u);
+		float side = 0;
+		float textX = inner.x;
+		float textY = inner.y;
+		float textW = inner.w;
+
+		if (horizontalDeck) {
+			side = std::max(8.0f, std::min(inner.h * 0.95f, inner.w * 0.32f));
+			L.record = {std::round(inner.x), std::round(inner.y + (inner.h - side) * 0.5f),
+				std::round(side), std::round(side)};
+			textX = std::round(std::min(inner.right() - 30.0f * u, L.record.x + side * 1.37f + space2 * u));
+			textW = std::max(0.0f, inner.right() - textX);
+		} else {
+			const float room = inner.h - copyH - progH - progGap - artGap;
+			side = std::max(8.0f, std::min(inner.w / 1.38f, room));
+			L.record = {std::round(inner.x + (inner.w - side * 1.37f) * 0.5f), inner.y,
+				std::round(side), std::round(side)};
+			textY = L.record.bottom() + artGap;
+		}
+		L.recordVisible = c.hasArtwork; // placeholders do not display a phantom record
+		if (L.recordVisible) {
+			L.armZone = {L.record.x, L.record.y, L.record.w * 1.25f, L.record.h};
+			L.armPivot = {L.record.x + L.record.w * 0.98f, L.record.y + L.record.h * 0.075f};
+		}
+		if (art) {
+			L.artVisible = true;
+			L.artPlacement = ArtPlacement::Inset;
+			L.art = {std::round(L.record.x + L.record.w * 0.54f), std::round(L.record.y + L.record.h * 0.065f),
+				std::round(L.record.w * 0.78f), std::round(L.record.h * 0.78f)};
+			L.artRadius = std::min(std::round(s.artworkRadius * u), L.art.w * 0.12f);
+		}
+		L.textColumn = {textX, textY, textW, horizontalDeck ? inner.h : inner.bottom() - textY};
+		if (horizontalDeck && compact) {
+			const float ph = std::max(1.0f, std::round(s.progressHeight * u));
+			if (s.showProgress && c.hasTimeline) {
+				L.progressVisible = true;
+				L.progressRadius = ph * 0.5f;
+				L.progress = {textX, std::round(L.card.bottom() - space2 * u - ph), textW, ph};
+			}
+			const float y = inner.y + std::max(0.0f, (inner.h - copyH) * 0.5f);
+			stackText(L, s, c, textX, y, textW, TextAlign::Left, false);
+		} else if (horizontalDeck) {
+			const float used = placeProgress(L, s, c, textX, inner.bottom(), textW, false);
+			const float avail = inner.h - (used > 0 ? used + progGap : 0);
+			const float y = inner.y + std::max(0.0f, (avail - copyH) * 0.46f);
+			stackText(L, s, c, textX, y, textW, TextAlign::Left, false);
+		} else {
+			const float bottom = stackText(L, s, c, textX, textY, textW, TextAlign::Left, false);
+			placeProgress(L, s, c, textX, bottom + progGap + progH, textW, false);
+		}
+		return L;
+	}
+
 	if (horizontal) {
 		float textX = inner.x;
 		if (art) {

@@ -35,6 +35,8 @@ Choreography choreographyFor(Composition c)
 		return {0.30f, 0.34f, {-5, 0}, {8, 0}, 0.97f, stagger};
 	case Composition::Editorial:
 		return {0.40f, 0.30f, {-10, 0}, {16, 0}, 1.0f, stagger * 1.4f};
+	case Composition::Turntable:
+		return {0.36f, 0.28f, {0, -4}, {0, 6}, 1.0f, stagger};
 	}
 	return {0.38f, 0.26f, {0, -6}, {0, 9}, 0.94f, stagger};
 }
@@ -146,6 +148,15 @@ void Scene::update(double t, const SceneInput &in)
 
 	const bool dimWanted = status_ == PlaybackStatus::Paused && style_.paused == PausedBehavior::Dim;
 	dim_ = approach(dim_, dimWanted ? 1.0f : 0.0f, static_cast<float>(dt), style_.reducedMotion ? 0.0f : 0.11f);
+
+	// The pressing turns at 33 1/3 RPM only while playing. These scalar values
+	// drive GPU transforms; the disc and arm textures are never rebuilt per frame.
+	if (style_.composition == Composition::Turntable) {
+		if (status_ == PlaybackStatus::Playing && !style_.reducedMotion)
+			recordAngle_ = std::fmod(recordAngle_ + static_cast<float>(dt) * 3.4906585f, 6.2831853f);
+		const float lift = status_ == PlaybackStatus::Playing ? 0.0f : 1.0f;
+		stylusLift_ = style_.reducedMotion ? lift : approach(stylusLift_, lift, static_cast<float>(dt), 0.16f);
+	}
 
 	// Animated artwork: fades in over the still cover once the host has a frame for
 	// exactly the track on screen. A different track drops it at once (its still
@@ -266,6 +277,8 @@ bool Scene::animating(double t) const
 {
 	if (prev_.layers)
 		return true;
+	if (style_.composition == Composition::Turntable && status_ == PlaybackStatus::Playing && !style_.reducedMotion)
+		return true;
 	if (std::fabs(appear_ - (targetVisible_ ? 1.0f : 0.0f)) > 0.001f)
 		return true;
 	(void)t;
@@ -346,7 +359,7 @@ const std::string &Scene::shownIdentity() const
 	return cur_.layers ? cur_.layers->identity : none;
 }
 
-void Scene::emitVideo(std::vector<DrawOp> &out, const LayerSet &set, float opacity, float scale) const
+void Scene::emitVideo(std::vector<DrawOp> &out, const LayerSet &set, float opacity, float scale, Vec2 shift) const
 {
 	const auto &m = set.videoMask;
 	if (!m.valid || opacity <= 0.002f)
@@ -354,7 +367,7 @@ void Scene::emitVideo(std::vector<DrawOp> &out, const LayerSet &set, float opaci
 	DrawOp op;
 	op.kind = DrawOp::Kind::Video;
 	op.color = Color{0, 0, 0, 0}; // no tint
-	Rect r = m.box;
+	Rect r = m.box.translated(shift.x, shift.y);
 	if (scale != 1.0f) {
 		const float cx = r.cx(), cy = r.cy();
 		r = {cx + (r.x - cx) * scale, cy + (r.y - cy) * scale, r.w * scale, r.h * scale};
@@ -465,8 +478,10 @@ void Scene::buildFrame(double t, std::vector<DrawOp> &out)
 	}
 
 	// Artwork
+	const bool turntable = style_.composition == Composition::Turntable;
+	const float sleeveSlide = turntable && !style_.reducedMotion ? 11.0f * C.layout.unit * style_.motionIntensity : 0.0f;
 	if (P)
-		emitImage(out, P->art, elementOpacityOut(kArt, p) * dimArt, {});
+		emitImage(out, P->art, elementOpacityOut(kArt, p) * dimArt, {0, -sleeveSlide * easing::exit(p)});
 	{
 		float scale = 1.0f;
 		if (P && transitionKind_ == TransitionKind::Track && !style_.reducedMotion) {
@@ -475,7 +490,8 @@ void Scene::buildFrame(double t, std::vector<DrawOp> &out)
 		}
 		const float inOpacity = P ? elementOpacityIn(kArt, p) : 1.0f;
 		const float artOpacity = inOpacity * dimArt;
-		emitImage(out, C.art, artOpacity, {}, scale);
+		const Vec2 sleeveShift{0, sleeveSlide * (1.0f - easing::enter(p))};
+		emitImage(out, C.art, artOpacity, sleeveShift, scale);
 		if (videoMix_ > 0.0f) {
 			const float mix = easing::inOut(videoMix_);
 			// The paused dim is applied to the video as a tint toward the card tone rather
@@ -483,15 +499,41 @@ void Scene::buildFrame(double t, std::vector<DrawOp> &out)
 			// Editorial bakes its cover into the (never dimmed) surface, so it isn't tinted.
 			const bool baked = !C.art.valid();
 			const float videoOpacity = (baked ? (P ? elementOpacityIn(kSurface, p) : 1.0f) : inOpacity) * mix;
-			emitVideo(out, C, videoOpacity, scale);
+			emitVideo(out, C, videoOpacity, scale, sleeveShift);
 			if (!baked && !out.empty() && out.back().kind == DrawOp::Kind::Video) {
 				out.back().color = C.surfaceTone;
 				out.back().color.a = 1.0f - dimArt;
 			}
 			const size_t before = out.size();
-			emitImage(out, C.artOverlay, artOpacity * mix, {}, scale);
+			emitImage(out, C.artOverlay, artOpacity * mix, sleeveShift, scale);
 			if (out.size() > before)
 				out.back().needsVideo = true;
+		}
+	}
+
+	// The sleeve (including optional motion artwork) stays behind the vinyl.
+	// Both sprites are cached: a rotation is just a compositor transform.
+	if (turntable) {
+		auto disc = [&](const LayerSet &layer, float opacity) {
+			const size_t before = out.size();
+			emitImage(out, layer.record, opacity * dimArt, {});
+			if (out.size() > before)
+				out.back().rotation = style_.reducedMotion ? 0.0f : recordAngle_;
+		};
+		if (P)
+			disc(*P, elementOpacityOut(kArt, p));
+		disc(C, P ? elementOpacityIn(kArt, p) : 1.0f);
+		const size_t before = out.size();
+		emitImage(out, C.arm, dimArt, {});
+		if (out.size() > before) {
+			DrawOp &arm = out.back();
+			const Rect &zone = C.layout.armZone;
+			arm.rotationOrigin = {(C.layout.armPivot.x - zone.x) / std::max(1.0f, zone.w),
+				(C.layout.armPivot.y - zone.y) / std::max(1.0f, zone.h)};
+			float lift = stylusLift_;
+			if (P && transitionKind_ == TransitionKind::Track && !style_.reducedMotion)
+				lift = std::max(lift, std::sin(3.14159265f * p));
+			arm.rotation = -0.50f * lift;
 		}
 	}
 

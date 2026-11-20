@@ -8,8 +8,63 @@
 
 namespace tonearm {
 
+
+// Mirrors the GPU's pivoted texture transform for headless renders and tests.
+// Only the turntable's two cached sprites use this path.
+static void drawRotatedImageOp(Image &target, const DrawOp &op)
+{
+	const Image &src = *op.image;
+	if (op.dst.empty() || src.empty() || op.opacity <= 0)
+		return;
+	const float c = std::cos(op.rotation), si = std::sin(op.rotation);
+	const float px = op.dst.x + op.dst.w * op.rotationOrigin.x;
+	const float py = op.dst.y + op.dst.h * op.rotationOrigin.y;
+	float xMin = 1e9f, yMin = 1e9f, xMax = -1e9f, yMax = -1e9f;
+	for (int corner = 0; corner < 4; ++corner) {
+		const float x = (corner & 1) ? op.dst.right() : op.dst.x;
+		const float y = (corner & 2) ? op.dst.bottom() : op.dst.y;
+		const float xx = px + c * (x - px) - si * (y - py);
+		const float yy = py + si * (x - px) + c * (y - py);
+		xMin = std::min(xMin, xx); xMax = std::max(xMax, xx);
+		yMin = std::min(yMin, yy); yMax = std::max(yMax, yy);
+	}
+	const int x0 = std::max(0, static_cast<int>(std::floor(xMin)));
+	const int y0 = std::max(0, static_cast<int>(std::floor(yMin)));
+	const int x1 = std::min(target.width(), static_cast<int>(std::ceil(xMax)));
+	const int y1 = std::min(target.height(), static_cast<int>(std::ceil(yMax)));
+	for (int y = y0; y < y1; ++y) {
+		uint8_t *d = target.row(y) + x0 * 4;
+		for (int x = x0; x < x1; ++x, d += 4) {
+			const float dx = x + 0.5f - px, dy = y + 0.5f - py;
+			const float xx = px + c * dx + si * dy, yy = py - si * dx + c * dy;
+			if (xx < op.dst.x || xx >= op.dst.right() || yy < op.dst.y || yy >= op.dst.bottom())
+				continue;
+			const float sx = (xx - op.dst.x) * src.width() / op.dst.w - 0.5f;
+			const float sy = (yy - op.dst.y) * src.height() / op.dst.h - 0.5f;
+			const int ix = static_cast<int>(std::floor(sx)), iy = static_cast<int>(std::floor(sy));
+			const int ax = std::clamp(ix, 0, src.width() - 1), bx = std::clamp(ix + 1, 0, src.width() - 1);
+			const int ay = std::clamp(iy, 0, src.height() - 1), by = std::clamp(iy + 1, 0, src.height() - 1);
+			const float tx = std::clamp(sx - ix, 0.0f, 1.0f), ty = std::clamp(sy - iy, 0.0f, 1.0f);
+			const uint8_t *a = src.row(ay), *b = src.row(by);
+			float samples[4];
+			for (int ch = 0; ch < 4; ++ch) {
+				const float top = a[ax * 4 + ch] * (1 - tx) + a[bx * 4 + ch] * tx;
+				const float bottom = b[ax * 4 + ch] * (1 - tx) + b[bx * 4 + ch] * tx;
+				samples[ch] = (top * (1 - ty) + bottom * ty) * op.opacity;
+			}
+			const float inv = 1.0f - std::clamp(samples[3] / 255.0f, 0.0f, 1.0f);
+			for (int ch = 0; ch < 4; ++ch)
+				d[ch] = static_cast<uint8_t>(std::clamp(samples[ch] + d[ch] * inv, 0.0f, 255.0f) + 0.5f);
+		}
+	}
+}
+
 static void drawImageOp(Image &target, const DrawOp &op)
 {
+	if (std::fabs(op.rotation) > 0.0001f) {
+		drawRotatedImageOp(target, op);
+		return;
+	}
 	const Image &src = *op.image;
 	const int dw = std::max(1, static_cast<int>(std::lround(op.dst.w)));
 	const int dh = std::max(1, static_cast<int>(std::lround(op.dst.h)));

@@ -18,6 +18,8 @@ struct DrawOp {
 	uint64_t imageId = 0;
 	Rect dst;
 	float opacity = 1;
+	float rotation = 0;     // radians; GPU rotates cached textures, never re-rasterizes per frame
+	Vec2 rotationOrigin{0.5f, 0.5f}; // normalized anchor within the image destination
 	bool clip = false;       // restrict to clipRect with soft horizontal edges
 	Rect clipRect;
 	float fadeLeft = 0, fadeRight = 0;
@@ -114,7 +116,7 @@ private:
 	Vec2 shiftOut(int element, float p) const;
 	void emitText(std::vector<DrawOp> &out, const LayerImage &li, double t, const Deck &deck, float opacity, Vec2 shift) const;
 	void emitImage(std::vector<DrawOp> &out, const LayerImage &li, float opacity, Vec2 shift, float scale = 1.0f) const;
-	void emitVideo(std::vector<DrawOp> &out, const LayerSet &set, float opacity, float scale) const;
+	void emitVideo(std::vector<DrawOp> &out, const LayerSet &set, float opacity, float scale, Vec2 shift = {}) const;
 	Rect transform(const Rect &r) const;
 	double duration(double baseMs) const;
 	uint64_t lastProvidedKey() const;
@@ -134,6 +136,10 @@ private:
 	TransitionKind transitionKind_ = TransitionKind::Track;
 	TimeLayers times_;
 	int wantElapsed_ = -1, wantRemaining_ = -1;
+
+	// Physical turntable animation (no per-frame CPU image generation).
+	float recordAngle_ = 0;
+	float stylusLift_ = 0; // 0 on the groove, 1 resting off the record
 
 	// Playback
 	PlaybackStatus status_ = PlaybackStatus::Unknown;
