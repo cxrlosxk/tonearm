@@ -4,6 +4,7 @@
 
 #include "core/demo.hpp"
 #include "core/raster.hpp"
+#include "core/turntable.hpp"
 
 using namespace tonearm;
 
@@ -80,8 +81,23 @@ TEST("raster: Turntable keeps the sleeve separate from a colored vinyl record")
 	CHECK(first->record.image->data()[3] == 0); // transparent disc corners
 	CHECK(first->palette.valid && second->palette.valid);
 	CHECK(first->record.image->data() != second->record.image->data());
-	CHECK(first->layout.art.right() > first->layout.record.cx()); // sleeve peeks out
+	CHECK(first->sheen.valid() && first->platter.valid());
+	CHECK(first->layout.art.right() > first->layout.record.x);   // the record overlaps its sleeve
+	CHECK(first->layout.record.cx() > first->layout.art.cx());  // and the sleeve peeks out behind it
 	CHECK(first->layout.art.right() < first->layout.textColumn.x);
+}
+
+TEST("raster: Turntable pressings separate from their sleeves")
+{
+	// Light sleeve -> deep pressing, dark sleeve -> luminous pressing, grey sleeve -> black vinyl.
+	Palette light{Color::hex("#efe8da"), Color::hex("#d8432f"), Color::hex("#1a1a1a"), Color::hex("#2a2420"), true};
+	Palette dark{Color::hex("#0f2f33"), Color::hex("#5fd3b8"), Color::hex("#ff7f66"), Color::hex("#0a1f22"), true};
+	Palette grey{Color::hex("#808080"), Color::hex("#9a9a9a"), Color::hex("#303030"), Color::hex("#202020"), true};
+	const auto pl = turntable::pressingFor(light), pd = turntable::pressingFor(dark), pg = turntable::pressingFor(grey);
+	CHECK(pl.colored && pd.colored && !pg.colored);
+	CHECK(contrastRatio(pl.vinyl, light.dominant) > 2.5f);
+	CHECK(contrastRatio(pd.vinyl, dark.dominant) > 2.5f);
+	CHECK(relativeLuminance(pg.vinyl) < 0.02f);
 }
 
 TEST("raster: short titles never scroll")
