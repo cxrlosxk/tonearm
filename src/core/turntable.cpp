@@ -201,7 +201,82 @@ Rect deckExtents(float ox, float oy)
 	return {x0, y0, x1 - x0, y1 - y0};
 }
 
-Pressing pressingFor(const Palette &pal, const Image *art)
+namespace {
+
+Color lch(float L, float C, float h) { return fromOklab(fromOklch({L, C, h})); }
+
+// Chooses and colors the centre label. Every style stays quiet: a paper or deep
+// tone, at most one second tone, and fine printed marks.
+void designLabel(Pressing &p, const Palette &pal, uint64_t seed)
+{
+	const Oklch vin = toOklch(toOklab(p.vinyl));
+	const Oklch dom = toOklch(toOklab(pal.dominant));
+	const Oklch acc = toOklch(toOklab(pal.accent));
+	const Oklch sec = toOklch(toOklab(pal.secondary));
+	const uint32_t h = static_cast<uint32_t>(seed ^ (seed >> 29) ^ (seed >> 47));
+	p.variant = h >> 8;
+	// Cream stock, nudged a little toward the sleeve's main color.
+	const Color paper = Color::hex("#efe9dc").mix(lch(0.90f, std::min(0.05f, dom.C), dom.h), 0.10f);
+	const float tintHue = dom.C > 0.03f ? dom.h : (sec.C > 0.03f ? sec.h : acc.h);
+	const float tintC = std::clamp(std::max(dom.C, acc.C * 0.5f), 0.045f, 0.085f);
+	const Color tint = lch(0.80f, tintC, tintHue);
+	const Color deep = lch(0.27f, std::clamp(acc.C * 0.55f, 0.03f, 0.085f), acc.h);
+	const Color accentInk = lch(0.56f, std::clamp(acc.C, 0.09f, 0.16f), acc.h);
+	const Color vinylInk = lch(0.30f, std::min(vin.C, 0.09f), vin.h);
+	const Color foil = acc.C > 0.06f ? lch(0.80f, 0.07f, acc.h) : Color::hex("#d9c48e");
+
+	p.style = static_cast<LabelStyle>(h % 5);
+	// Dark labels would vanish into a deep pressing; those get light variants instead.
+	const bool deepVinyl = p.colored && vin.L < 0.48f;
+	if (deepVinyl && p.style == LabelStyle::Foil)
+		p.style = LabelStyle::Split;
+	if (deepVinyl && p.style == LabelStyle::Band) {
+		p.label = paper;
+		p.label2 = tint;
+		p.ink = vinylInk;
+		return;
+	}
+	switch (p.style) {
+	case LabelStyle::Paper:
+		p.label = paper;
+		p.label2 = paper;
+		p.ink = vinylInk;
+		break;
+	case LabelStyle::Split:
+		p.label = paper;
+		p.label2 = tint;
+		p.ink = vinylInk;
+		break;
+	case LabelStyle::Band:
+		p.label = deep;
+		p.label2 = lch(0.36f, std::clamp(acc.C * 0.6f, 0.03f, 0.09f), acc.h);
+		p.ink = paper;
+		break;
+	case LabelStyle::Foil:
+		p.label = Color::hex("#161618").mix(deep, 0.25f);
+		p.label2 = foil;
+		p.ink = foil;
+		break;
+	case LabelStyle::Mark:
+		p.label = tint;
+		p.label2 = accentInk.mix(Color::hex("#ffffff"), 0.0f);
+		p.ink = lch(0.28f, std::min(tintC, 0.06f), tintHue);
+		break;
+	}
+}
+
+} // namespace
+
+Rect bareDeckExtents()
+{
+	const Vec2 pivot{kPivotX, kPivotY};
+	const Rect arm = armRestBounds(pivot, 1.0f);
+	const float x0 = std::min(-kPlatter, arm.x), y0 = std::min(-kPlatter, arm.y);
+	const float x1 = std::max(kPlatter, arm.right()), y1 = std::max(kPlatter, arm.bottom());
+	return {x0, y0, x1 - x0, y1 - y0};
+}
+
+Pressing pressingFor(const Palette &pal, const Image *art, uint64_t seed)
 {
 	Pressing p;
 	const Oklch acc = toOklch(toOklab(pal.accent));
@@ -217,8 +292,7 @@ Pressing pressingFor(const Palette &pal, const Image *art)
 		// A monochrome sleeve gets a classic black pressing with a cream label.
 		p.colored = false;
 		p.vinyl = Color::hex("#141517");
-		p.label = Color::hex("#ebe5d8");
-		p.ink = Color::hex("#2b2a28");
+		designLabel(p, pal, seed);
 		return p;
 	}
 	Oklch v = acc;
@@ -262,13 +336,86 @@ Pressing pressingFor(const Palette &pal, const Image *art)
 	// Lightness is set against the sleeve: luminous on dark covers, deep on light ones.
 	v.L = dom.L > 0.58f ? 0.42f : 0.60f;
 	p.vinyl = fromOklab(fromOklch(v));
-	p.label = Color::hex("#eee8dc").mix(pal.secondary, 0.10f);
-	Oklch ink = v;
-	ink.L = 0.32f;
-	ink.C = std::min(ink.C, 0.10f);
-	p.ink = fromOklab(fromOklch(ink));
+	designLabel(p, pal, seed);
 	return p;
 }
+
+namespace {
+
+// One pixel of the centre label, in label-local coordinates (record radii).
+Color labelColor(const Pressing &pr, float lx, float ly, float rho, float theta, float Rd)
+{
+	const float px = 1.0f / std::max(1.0f, Rd); // one pixel, in record radii
+	const float hair = std::max(0.006f, 0.8f * px);
+	const uint32_t v = pr.variant;
+	Color col = pr.label;
+	switch (pr.style) {
+	case LabelStyle::Split:
+		// Upper half in the second tone with a fine printed divider.
+		if (ly < -hair * 0.5f)
+			col = pr.label2;
+		if (std::fabs(ly) < hair * 0.5f)
+			col = pr.ink.mix(col, 0.3f);
+		break;
+	case LabelStyle::Band:
+	case LabelStyle::Foil:
+		if (rho > 0.262f)
+			col = pr.style == LabelStyle::Band ? pr.label2 : col;
+		break;
+	default:
+		break;
+	}
+	bool ink = false;
+	Color inkC = pr.ink;
+	// Printed rings: one hairline, or a pair on foil labels.
+	if (pr.style == LabelStyle::Foil) {
+		if (std::fabs(rho - 0.262f) < hair * 0.5f || std::fabs(rho - 0.322f) < hair * 0.5f)
+			ink = true;
+	} else if (pr.style != LabelStyle::Band) {
+		if (std::fabs(rho - 0.302f) < hair * 0.5f)
+			ink = true;
+	}
+	// Circular small print, on the top or the bottom arc.
+	const bool top = (v & 1) == 0;
+	const float arcR0 = pr.style == LabelStyle::Band || pr.style == LabelStyle::Foil ? 0.280f : 0.248f;
+	const float t0 = top ? -2.55f : 0.60f, t1 = top ? -0.60f : 2.55f;
+	if (rho > arcR0 && rho < arcR0 + 0.019f && theta > t0 && theta < t1) {
+		const float period = std::max(2.2f, 0.034f * Rd);
+		const float s = (theta - t0) * rho * Rd / period;
+		const int glyph = static_cast<int>(s);
+		ink = ink || ((s - glyph) < 0.70f && ringHash(glyph + 77 + static_cast<int>(v & 255)) > 0.18f);
+	}
+	// Title and catalogue lines on the side opposite the small print, a mark on the other.
+	const float sgn = top ? 1.0f : -1.0f;
+	const float w1 = 0.07f + 0.05f * ((v >> 2) & 3) / 3.0f;
+	if (std::fabs(ly - sgn * 0.118f) < 0.012f && std::fabs(lx) < w1)
+		ink = true;
+	if (((v >> 4) & 1) && std::fabs(ly - sgn * 0.160f) < 0.008f && std::fabs(lx) < w1 * 0.55f)
+		ink = true;
+	const float mx = 0.0f, my = -sgn * 0.150f;
+	const float mr = pr.style == LabelStyle::Mark ? 0.050f : 0.030f;
+	const float dxm = lx - mx, dym = ly - my;
+	bool mark = false;
+	switch ((v >> 5) % 3) {
+	case 0: mark = std::hypot(dxm, dym) < mr; break;                                  // dot
+	case 1: mark = std::fabs(dxm) + std::fabs(dym) < mr * 1.15f; break;               // diamond
+	case 2: mark = std::fabs(std::hypot(dxm, dym) - mr * 0.8f) < std::max(0.009f, px * 0.6f); break; // ring
+	}
+	if (mark) {
+		ink = true;
+		if (pr.style == LabelStyle::Mark || pr.style == LabelStyle::Foil)
+			inkC = pr.label2;
+	}
+	if (ink)
+		col = inkC.mix(col, 0.10f);
+	col = scaled(col, 1.0f - 0.07f * sq(rho / kLabel));
+	// The label edge is pressed slightly into the vinyl.
+	if (rho > kLabel - std::max(0.008f, 0.8f * px))
+		col = scaled(col, 0.86f);
+	return col;
+}
+
+} // namespace
 
 Image makeRecord(int side, const Pressing &pr, uint64_t seed)
 {
@@ -290,30 +437,7 @@ Image makeRecord(int side, const Pressing &pr, uint64_t seed)
 			Color col;
 			float alpha = 1.0f;
 			if (rho < kLabel) {
-				const float lx = dx / Rd, ly = dy / Rd;
-				col = scaled(pr.label, 1.0f - 0.07f * sq(rho / kLabel));
-				bool ink = false;
-				if (rho > 0.300f && rho < 0.300f + std::max(0.006f, 0.8f / Rd))
-					ink = true;
-				// Circular "small print" along the top of the label.
-				if (rho > 0.252f && rho < 0.272f && theta > -2.55f && theta < -0.60f) {
-					const float period = std::max(2.2f, 0.034f * Rd);
-					const float s = (theta + 2.55f) * rho * Rd / period;
-					const int glyph = static_cast<int>(s);
-					ink = ink || ((s - glyph) < 0.70f && ringHash(glyph + 77) > 0.18f);
-				}
-				// Title and catalogue lines below the spindle, a mark above it.
-				if (std::fabs(ly - 0.118f) < 0.013f && std::fabs(lx) < 0.105f)
-					ink = true;
-				if (std::fabs(ly - 0.165f) < 0.009f && std::fabs(lx) < 0.062f)
-					ink = true;
-				if (std::hypot(lx, ly + 0.155f) < 0.032f)
-					ink = true;
-				if (ink)
-					col = pr.ink.mix(col, 0.12f);
-				// The label edge is pressed slightly into the vinyl.
-				if (rho > kLabel - std::max(0.008f, 0.8f / Rd))
-					col = scaled(col, 0.86f);
+				col = labelColor(pr, dx / Rd, dy / Rd, rho, theta, Rd);
 			} else {
 				float shade;
 				if (rho > kLip) {
@@ -518,22 +642,32 @@ void drawPlinthHardware(Image &card, Vec2 P, float R)
 	});
 	disc(card, P, base * 0.62f, [](float, float) { return Color::hex("#1b1c1e"); });
 
-	// Arm rest: a small post with a cradle where the tube lies when lifted.
+	// Arm rest: a machined cradle across the tube's rest position, so the stop reads as
+	// hardware rather than a stray dot when the arm is out on the record.
 	const ArmShape A;
 	const Vec2 J = A.joint();
 	const Vec2 rest{P.x + J.x * 0.63f * R, P.y + J.y * 0.63f * R};
-	const float post = std::max(1.6f, 0.055f * R);
+	const float len = std::hypot(J.x, J.y);
+	const Vec2 across{J.y / len, -J.x / len};
+	const float hl = std::max(2.4f, 0.085f * R), hw = std::max(1.2f, 0.034f * R);
 	{
 		Image shadow(card.width(), card.height());
-		disc(shadow, {rest.x + 0.02f * R, rest.y + 0.03f * R}, post, [](float, float) { return Color{0, 0, 0, 0.6f}; });
+		box(shadow, {rest.x + 0.02f * R, rest.y + 0.035f * R}, across, hl, hw, hw, [](float, float) { return Color{0, 0, 0, 0.6f}; });
 		blur(shadow, std::max(1.0f, 0.03f * R));
 		composite(card, shadow, 0, 0);
 	}
-	disc(card, rest, post, [](float dx, float dy) {
-		const float l = 0.16f + 0.30f * dome(dx, dy);
+	box(card, rest, across, hl, hw, hw, [](float v, float) {
+		const float l = 0.14f + 0.16f * sat(v * 0.5f + 0.5f);
 		return Color{l, l, l * 1.03f, 1};
 	});
-	disc(card, rest, post * 0.55f, [](float, float) { return Color::hex("#0e0f10"); });
+	// Two posts that cradle the tube.
+	for (float side : {-1.0f, 1.0f}) {
+		const Vec2 c{rest.x + across.x * side * hl * 0.62f, rest.y + across.y * side * hl * 0.62f};
+		disc(card, c, std::max(0.9f, 0.026f * R), [](float dx, float dy) {
+			const float l = 0.30f + 0.40f * dome(dx, dy);
+			return Color{l, l, l * 1.03f, 1};
+		});
+	}
 }
 
 } // namespace turntable

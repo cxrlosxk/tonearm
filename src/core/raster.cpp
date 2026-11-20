@@ -540,8 +540,12 @@ std::shared_ptr<LayerSet> rasterizeLayers(const Style &s, const DisplayContent &
 	if (comp == Composition::Turntable && L.recordVisible && !L.record.empty()) {
 		const int side = std::max(8, static_cast<int>(std::lround(L.record.w)));
 		const float R = side * 0.5f;
-		const turntable::Pressing press = turntable::pressingFor(set->palette, c.artwork && !c.artwork->empty() ? c.artwork.get() : nullptr);
 		const uint64_t seed = seedFor(c);
+		// Labels belong to the album, so every track of an album shares its label design.
+		const std::string albumKey = c.artist + "|" + (c.album.empty() ? c.title : c.album);
+		const uint64_t labelSeed = hashBytes(reinterpret_cast<const uint8_t *>(albumKey.data()), albumKey.size());
+		const turntable::Pressing press =
+			turntable::pressingFor(set->palette, c.artwork && !c.artwork->empty() ? c.artwork.get() : nullptr, labelSeed);
 		const int pad = static_cast<int>(std::ceil(0.16f * R + 8.0f * u));
 		set->platter.image = share(turntable::makePlatter(side, pad, u));
 		set->platter.id = nextImageId();

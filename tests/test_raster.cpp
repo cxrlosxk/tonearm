@@ -100,6 +100,24 @@ TEST("raster: Turntable pressings separate from their sleeves")
 	CHECK(relativeLuminance(pg.vinyl) < 0.02f);
 }
 
+TEST("raster: Turntable Compact is the bare record, and labels vary by album")
+{
+	auto set = rasterizeLayers(makePreset("turntable", LayoutMode::CompactHorizontal), content(0), testsupport::text());
+	CHECK(set->record.valid());
+	CHECK(!set->art.valid());                                 // no sleeve in Compact
+	CHECK(set->layout.record.h > set->layout.card.h * 0.70f); // the record fills the bar
+	CHECK(set->layout.record.right() < set->layout.textColumn.x);
+
+	Palette pal{Color::hex("#1d1440"), Color::hex("#e2604a"), Color::hex("#7a2a62"), Color::hex("#120a1f"), true};
+	bool seen[5] = {};
+	for (uint64_t seed = 0; seed < 40; ++seed)
+		seen[static_cast<int>(turntable::pressingFor(pal, nullptr, seed * 7919).style)] = true;
+	int styles = 0;
+	for (bool b : seen)
+		styles += b ? 1 : 0;
+	CHECK(styles >= 4);
+}
+
 TEST("raster: short titles never scroll")
 {
 	auto set = rasterizeLayers(makePreset("minimal", LayoutMode::ExpandedHorizontal), content(2), testsupport::text());

@@ -32,13 +32,21 @@ float armAngleForRadius(float rho);
 Rect deckExtents(float ox, float oy);
 
 // Collectible pressing color: the cover's hue, pushed away from the sleeve.
+// The centre label is designed per album: one of a few understated label styles,
+// picked from the album's identity and colored from its cover.
+enum class LabelStyle { Paper, Split, Band, Foil, Mark };
 struct Pressing {
 	Color vinyl;
-	Color label;
-	Color ink;
+	Color label;   // label paper
+	Color label2;  // second tone: split half, band, or foil accent
+	Color ink;     // printed marks
+	LabelStyle style = LabelStyle::Paper;
+	uint32_t variant = 0; // small print placement and mark shape
 	bool colored = true;
 };
-Pressing pressingFor(const Palette &pal, const Image *art = nullptr);
+Pressing pressingFor(const Palette &pal, const Image *art = nullptr, uint64_t seed = 0);
+// Deck bounds for a record without its sleeve (Compact), in record radii around its centre.
+Rect bareDeckExtents();
 
 Image makeRecord(int side, const Pressing &p, uint64_t seed);
 Image makeSheen(int side, const Pressing &p);

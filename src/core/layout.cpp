@@ -200,7 +200,7 @@ Layout computeLayout(const Style &s, const LayoutContent &content)
 		case LayoutMode::CompactHorizontal: ox = 0.50f; oy = 0.0f; break;
 		case LayoutMode::ExpandedHorizontal: ox = 0.52f; oy = 0.0f; break;
 		case LayoutMode::Square: ox = 0.40f; oy = 0.04f; break;
-		case LayoutMode::Vertical: ox = 0.21f; oy = 0.50f; break;
+		case LayoutMode::Vertical: ox = 0.14f; oy = 0.46f; break;
 		}
 		const Rect ext = turntable::deckExtents(ox, oy);
 		const float progH = horizontal && compact ? 0.0f : progressRowHeight(s, c, u);
@@ -216,20 +216,33 @@ Layout computeLayout(const Style &s, const LayoutContent &content)
 			const float textH = copyH + progGap + progH;
 			const float room = std::max(8.0f, inner.h - textH - deckGap);
 			side = std::min(inner.w / ext.w, room / ext.h);
-			deck = {inner.x + (inner.w - ext.w * side) * 0.5f, inner.y + (room - ext.h * side) * 0.5f, ext.w * side,
-				ext.h * side};
+			// The arm's extents include its soft shadow; centre on the visible hardware.
+			deck = {inner.x + (inner.w - ext.w * side) * 0.5f + 0.03f * side, inner.y + (room - ext.h * side) * 0.5f,
+				ext.w * side, ext.h * side};
 		}
 		side = std::max(8.0f, side);
 		const Rect sleeve{std::round(deck.x - ext.x * side), std::round(deck.y - ext.y * side), std::round(side), std::round(side)};
-		const float R = std::round(side * turntable::kRecordToSleeve * 0.5f);
-		const Vec2 center{sleeve.cx() + ox * side, sleeve.cy() + oy * side};
+		float R = std::round(side * turntable::kRecordToSleeve * 0.5f);
+		Vec2 center{sleeve.cx() + ox * side, sleeve.cy() + oy * side};
+		if (compact) {
+			// Compact is the distilled deck: no sleeve, just the record and its arm,
+			// filling the bar's height with an even margin on the left.
+			const Rect bare = turntable::bareDeckExtents();
+			const float margin = std::round(space2 * u);
+			const float room = std::max(8.0f, L.card.h - margin * 2);
+			R = std::floor(std::min(room / bare.h, inner.w * 0.34f / bare.w));
+			const float top = L.card.y + (L.card.h - bare.h * R) * 0.5f;
+			center = {std::round(L.card.x + margin + std::max(0.0f, -bare.x - turntable::kPlatter) * R + turntable::kPlatter * R),
+				  std::round(top - bare.y * R)};
+			deck = {center.x + bare.x * R, top, bare.w * R, bare.h * R};
+		}
 		L.record = {std::round(center.x - R), std::round(center.y - R), R * 2, R * 2};
 		L.recordVisible = c.hasArtwork; // the idle placeholder shows no phantom record
 		L.armPivot = {L.record.cx() + turntable::kPivotX * R, L.record.cy() + turntable::kPivotY * R};
 		L.armZone = turntable::armRestBounds(L.armPivot, R);
 		L.armOuter = turntable::armAngleForRadius(0.925f);
 		L.armInner = turntable::armAngleForRadius(0.49f);
-		if (art) {
+		if (art && !compact) {
 			L.artVisible = true;
 			L.artPlacement = ArtPlacement::Inset;
 			L.art = sleeve;
