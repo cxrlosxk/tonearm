@@ -162,6 +162,68 @@ TEST("scene: changing the style re-rasterizes once")
 	CHECK(!r.ops.empty());
 }
 
+
+TEST("scene: Turntable spins only during playback and lifts the stylus on pause")
+{
+	Rig r(makePreset("turntable", LayoutMode::ExpandedHorizontal));
+	r.run(0, 1.0);
+	const auto set = r.scene.currentLayers();
+	CHECK(set && set->record.valid() && set->arm.valid());
+	auto find = [&](uint64_t imageId) -> const DrawOp * {
+		for (const auto &op : r.ops)
+			if (op.kind == DrawOp::Kind::Image && op.imageId == imageId)
+				return &op;
+		return nullptr;
+	};
+	const DrawOp *playingRecord = find(set->record.id);
+	CHECK(playingRecord != nullptr);
+	const float before = playingRecord ? playingRecord->rotation : -1;
+	r.run(1.0, 1.2);
+	playingRecord = find(set->record.id);
+	CHECK(playingRecord != nullptr && std::fabs(playingRecord->rotation - before) > 0.1f);
+	r.setTimeline(PlaybackStatus::Paused, 35, 1.2, demoDuration(0));
+	r.run(1.2, 2.2);
+	const DrawOp *pausedRecord = find(set->record.id);
+	const DrawOp *pausedArm = find(set->arm.id);
+	CHECK(pausedRecord != nullptr);
+	CHECK(pausedArm != nullptr && pausedArm->rotation < -0.30f);
+	const float held = pausedRecord ? pausedRecord->rotation : 0.0f;
+	r.run(2.2, 2.5);
+	pausedRecord = find(set->record.id);
+	CHECK(pausedRecord != nullptr);
+	if (pausedRecord) CHECK_NEAR(pausedRecord->rotation, held, 0.001f);
+
+	Style reduced = makePreset("turntable", LayoutMode::CompactHorizontal);
+	reduced.reducedMotion = true;
+	Rig calm(reduced);
+	calm.run(0, 1);
+	const auto noMotion = calm.scene.currentLayers();
+	bool fixed = false;
+	for (const auto &op : calm.ops)
+		if (op.imageId == noMotion->record.id && std::fabs(op.rotation) < 0.001f)
+			fixed = true;
+	CHECK(fixed);
+}
+
+TEST("scene: Turntable can animate the sleeve without animating the pressing")
+{
+	Style s = makePreset("turntable", LayoutMode::ExpandedHorizontal);
+	s.artworkMode = ArtworkMode::AnimatedWhenAvailable;
+	Rig r(s);
+	r.run(0, 1);
+	r.motion = {r.session.track.identity(), true};
+	r.run(1, 2);
+	const auto set = r.scene.currentLayers();
+	CHECK(set && set->videoMask.valid);
+	CHECK(set->videoMask.box.x == set->layout.art.x);
+	int videoIndex = -1, recordIndex = -1;
+	for (size_t i = 0; i < r.ops.size(); ++i) {
+		if (r.ops[i].kind == DrawOp::Kind::Video) videoIndex = static_cast<int>(i);
+		if (r.ops[i].imageId == set->record.id) recordIndex = static_cast<int>(i);
+	}
+	CHECK(videoIndex >= 0 && recordIndex > videoIndex);
+}
+
 TEST("scene: every preset and layout produces a frame for every demo track")
 {
 	for (const auto &p : presetList())
