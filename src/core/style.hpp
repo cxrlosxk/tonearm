@@ -32,7 +32,7 @@ constexpr float durQuick = 160, durStandard = 280, durEmphasis = 460, durTrack =
 constexpr float stagger = 50;
 } // namespace tokens
 
-enum class Composition { Glass, Minimal, Neon, Editorial };
+enum class Composition { Glass, Minimal, Neon, Editorial, Turntable };
 enum class LayoutMode { CompactHorizontal, ExpandedHorizontal, Square, Vertical };
 enum class TimeDisplay { Hidden, Elapsed, Remaining, Both };
 enum class PausedBehavior { Keep, Dim, HideAfterDelay };
@@ -123,7 +123,7 @@ struct PresetInfo {
 
 const std::vector<PresetInfo> &presetList();
 
-// Returns the preset with the given id ("glass", "minimal", "neon", "editorial").
+// Returns the preset with the given id ("glass", "minimal", "neon", "editorial", "turntable").
 // Unknown ids return Glass.
 Style makePreset(const std::string &id, LayoutMode layout);
 
